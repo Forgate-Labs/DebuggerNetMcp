@@ -70,7 +70,7 @@ class DebugSession:
         await self._dap.start()
 
         # Initialize
-        init_resp = await self._dap.send_request("initialize", {
+        await self._dap.send_request("initialize", {
             "clientID": "debugger-net-mcp",
             "adapterID": "coreclr",
             "pathFormat": "path",
@@ -79,13 +79,7 @@ class DebugSession:
             "supportsRunInTerminalRequest": False,
         })
 
-        # Set pending breakpoints
-        await self._send_pending_breakpoints()
-
-        # Configuration done
-        await self._dap.send_request("configurationDone")
-
-        # Launch
+        # Launch - must come BEFORE configurationDone per DAP spec
         launch_args = {
             "program": dll_path,
             "cwd": str(__import__("pathlib").Path(dll_path).parent),
@@ -95,6 +89,17 @@ class DebugSession:
             launch_args["args"] = args
 
         await self._dap.send_request("launch", launch_args)
+
+        # Wait for the "initialized" event BEFORE sending breakpoints
+        initialized = await self._dap.wait_for_event("initialized", timeout=15.0)
+        if initialized is None:
+            logger.warning("Timed out waiting for 'initialized' event")
+
+        # Now set pending breakpoints
+        await self._send_pending_breakpoints()
+
+        # Configuration done - signals we're done configuring
+        await self._dap.send_request("configurationDone")
 
         # Start output listener
         self._output_listener = asyncio.create_task(self._listen_outputs())
@@ -135,10 +140,16 @@ class DebugSession:
             "columnsStartAt1": True,
         })
 
+        # Attach - must come BEFORE configurationDone per DAP spec
+        await self._dap.send_request("attach", {"processId": process_id})
+
+        # Wait for the "initialized" event BEFORE sending breakpoints
+        initialized = await self._dap.wait_for_event("initialized", timeout=15.0)
+        if initialized is None:
+            logger.warning("Timed out waiting for 'initialized' event")
+
         await self._send_pending_breakpoints()
         await self._dap.send_request("configurationDone")
-
-        await self._dap.send_request("attach", {"processId": process_id})
 
         self._output_listener = asyncio.create_task(self._listen_outputs())
         self._state = SessionState.RUNNING
