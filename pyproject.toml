@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "debugger-net-mcp"
 version = "0.1.0"
 description = "MCP Server for .NET Core debugging via netcoredbg DAP"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "mcp[cli]>=1.2.0",
 ]
