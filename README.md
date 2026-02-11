@@ -12,23 +12,37 @@ MCP server that enables interactive debugging of .NET Core projects via the Debu
 - Inspect variables and evaluate C# expressions
 - View call stack and program output
 - Full async implementation using asyncio
+- Automatic workaround for netcoredbg SIGSEGV on Linux kernel >= 6.12
 
 ## Prerequisites
 
 - Python 3.11+
-- .NET SDK 8.0
-- netcoredbg (compiled from source recommended)
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- .NET SDK 8.0+
+- netcoredbg ([Samsung/netcoredbg](https://github.com/Samsung/netcoredbg))
+- `strace` (required on Linux kernel >= 6.12, install with `sudo apt install strace`)
 
-## Building netcoredbg from source
+## Installing netcoredbg
 
-The pre-built netcoredbg binaries may SIGSEGV on `configurationDone`. Building from source resolves this.
+### Option A: Pre-built release (recommended)
+
+```bash
+# Download latest release
+curl -sL https://github.com/Samsung/netcoredbg/releases/latest/download/netcoredbg-linux-amd64.tar.gz \
+  | tar xz -C ~/.local/bin --strip-components=1
+
+# Verify
+~/.local/bin/netcoredbg --version
+```
+
+### Option B: Build from source
 
 ```bash
 # Install build dependencies
 sudo apt install -y clang cmake git libicu-dev
 
-# Install .NET SDK 8.0 (if not already installed)
-curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 8.0
+# Install .NET SDK (if not already installed)
+curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 9.0
 export DOTNET_ROOT=$HOME/.dotnet
 export PATH=$DOTNET_ROOT:$PATH
 
@@ -40,8 +54,6 @@ CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=
 make -j$(nproc)
 make install
 
-# Verify installation
-# Files will be in ~/.local/ (netcoredbg, ManagedPart.dll, libdbgshim.so, etc.)
 # Copy all files to ~/.local/bin/ so they're co-located:
 cp $HOME/.local/netcoredbg $HOME/.local/bin/
 cp $HOME/.local/ManagedPart.dll $HOME/.local/Microsoft.CodeAnalysis*.dll $HOME/.local/libdbgshim.so $HOME/.local/bin/
@@ -53,10 +65,24 @@ $HOME/.local/bin/netcoredbg --version
 ## Installation
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+# With uv (recommended)
+uv sync
+
+# Or with pip
 pip install -e .
 ```
+
+## Known issue: SIGSEGV on Linux kernel >= 6.12
+
+On Linux kernels >= 6.12, netcoredbg crashes with SIGSEGV during `configurationDone` due to a race condition in the debug pipe setup between `libdbgshim.so` and the CoreCLR runtime. This affects both pre-built and source-compiled netcoredbg.
+
+The MCP server automatically detects this and wraps netcoredbg with `strace -f -e trace=none -o /dev/null`, which adds enough ptrace overhead to prevent the race. This requires `strace` to be installed:
+
+```bash
+sudo apt install strace
+```
+
+To disable the workaround: set `DEBUGGER_NET_MCP_NO_STRACE=1`.
 
 ## DAP Protocol Order
 
@@ -66,37 +92,32 @@ The correct DAP initialization sequence (verified via testing):
 initialize → launch(stopAtEntry) → wait "initialized" event → setBreakpoints → configurationDone → wait "stopped" event
 ```
 
-This follows the standard DAP specification (Order A). Both Order A and the alternative "netcoredbg-specific" order (where launch comes after configurationDone) work with source-compiled netcoredbg.
+Both this standard order and the alternative "netcoredbg-specific" order (where launch comes after configurationDone) work.
 
 ## Registering with Claude Code
 
-Add to `~/.claude/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "debugger-net": {
-      "command": "python3",
-      "args": ["-m", "debugger_net_mcp"],
-      "env": {
-        "PYTHONPATH": "/path/to/DebuggerNetMcp/src",
-        "DOTNET_ROOT": "/path/to/.dotnet",
-        "NETCOREDBG_PATH": "/path/to/.local/bin/netcoredbg",
-        "LD_LIBRARY_PATH": "/path/to/.local/bin"
-      }
-    }
-  }
-}
+```bash
+claude mcp add debugger-net --scope user \
+  -e "DOTNET_ROOT=$HOME/.dotnet" \
+  -e "NETCOREDBG_PATH=$HOME/.local/bin/netcoredbg" \
+  -e "LD_LIBRARY_PATH=$HOME/.local/bin" \
+  -- uv --directory /path/to/DebuggerNetMcp run python -m debugger_net_mcp
 ```
 
-Replace `/path/to/` with your actual paths (e.g., `$HOME`).
+Replace `/path/to/DebuggerNetMcp` with the actual path to this repository.
+
+Verify the server is connected:
+
+```bash
+claude mcp list
+```
 
 ## Usage example
 
 Once registered, Claude Code can use the debug tools:
 
 ```
-> debug_launch("/path/to/MyProject")   # Build & launch with debugger
+> debug_launch("/path/to/MyProject")      # Build & launch with debugger
 > debug_set_breakpoint("Program.cs", 10)  # Set breakpoint
 > debug_continue()                        # Run to breakpoint
 > debug_variables()                       # Inspect variables
@@ -111,15 +132,15 @@ Once registered, Claude Code can use the debug tools:
 ```bash
 # Create a test project
 mkdir -p /tmp/debug-test
-dotnet new console -n HelloDebug -o /tmp/debug-test/HelloDebug --framework net8.0
+dotnet new console -n HelloDebug -o /tmp/debug-test/HelloDebug --framework net9.0
 # Edit Program.cs with test code, then:
 dotnet build /tmp/debug-test/HelloDebug -c Debug
 
-# Run raw DAP protocol test
-python3 test_dap_protocol.py
-
 # Run integration test (uses Python session classes)
-python3 test_integration.py
+uv run python test_integration.py
+
+# Run raw DAP protocol test
+uv run python test_dap_protocol.py
 ```
 
 ## License
