@@ -4,11 +4,41 @@ import asyncio
 import json
 import logging
 import os
+import platform
 import shutil
 from collections import defaultdict
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _needs_strace_workaround() -> bool:
+    """Check if we need the strace workaround for a kernel race condition.
+
+    On Linux kernels >= 6.12, netcoredbg can SIGSEGV during configurationDone
+    due to a race condition in the debug pipe setup between libdbgshim.so and
+    the CoreCLR runtime. Running under strace adds enough ptrace overhead to
+    prevent the race. Disable with DEBUGGER_NET_MCP_NO_STRACE=1.
+    """
+    if os.environ.get("DEBUGGER_NET_MCP_NO_STRACE", "").strip() == "1":
+        return False
+    if platform.system() != "Linux":
+        return False
+    try:
+        release = platform.release()  # e.g. "6.17.0-14-generic"
+        major, minor = (int(x) for x in release.split(".")[:2])
+        if major < 6 or (major == 6 and minor < 12):
+            return False
+    except (ValueError, IndexError):
+        return False
+    if not shutil.which("strace"):
+        logger.warning(
+            "Kernel %s may need strace workaround for netcoredbg, "
+            "but strace is not installed. Install with: sudo apt install strace",
+            platform.release(),
+        )
+        return False
+    return True
 
 _NETCOREDBG_SEARCH_PATHS = [
     "/usr/local/bin/netcoredbg",
@@ -83,8 +113,17 @@ class DapClient:
         existing_ld = env.get("LD_LIBRARY_PATH", "")
         env["LD_LIBRARY_PATH"] = ":".join(lib_dirs) + (":" + existing_ld if existing_ld else "")
 
+        cmd = [exe, "--interpreter=vscode"]
+
+        # Workaround for kernel race condition causing SIGSEGV in netcoredbg.
+        # strace -f -e trace=none adds ptrace overhead that prevents the race.
+        if _needs_strace_workaround():
+            strace = shutil.which("strace")
+            cmd = [strace, "-f", "-e", "trace=none", "-o", "/dev/null"] + cmd
+            logger.info("Using strace workaround for kernel %s", platform.release())
+
         self._process = await asyncio.create_subprocess_exec(
-            exe, "--interpreter=vscode",
+            *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

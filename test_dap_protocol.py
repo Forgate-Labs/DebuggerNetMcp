@@ -11,13 +11,15 @@ Tests two different DAP orderings to determine which one works:
 import asyncio
 import json
 import os
+import platform
+import shutil
 import sys
 from pathlib import Path
 
 NETCOREDBG = os.environ.get("NETCOREDBG_PATH", os.path.expanduser("~/.local/bin/netcoredbg"))
 DOTNET_ROOT = os.environ.get("DOTNET_ROOT", os.path.expanduser("~/.dotnet"))
 PROJECT_DIR = "/tmp/debug-test/HelloDebug"
-DLL_PATH = f"{PROJECT_DIR}/bin/Debug/net8.0/HelloDebug.dll"
+DLL_PATH = f"{PROJECT_DIR}/bin/Debug/net9.0/HelloDebug.dll"
 PROGRAM_CS = f"{PROJECT_DIR}/Program.cs"
 BP_LINE = 6  # var sum = 0;
 
@@ -47,10 +49,19 @@ class DapRawClient:
         for k in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
             env.pop(k, None)
 
+        cmd = [NETCOREDBG, "--interpreter=vscode", "--engineLogging=/tmp/engine.log"]
+
+        # Strace workaround for kernel >= 6.12 race condition
+        if platform.system() == "Linux" and shutil.which("strace"):
+            try:
+                major, minor = (int(x) for x in platform.release().split(".")[:2])
+                if major > 6 or (major == 6 and minor >= 12):
+                    cmd = ["strace", "-f", "-e", "trace=none", "-o", "/dev/null"] + cmd
+            except (ValueError, IndexError):
+                pass
+
         self.proc = await asyncio.create_subprocess_exec(
-            NETCOREDBG,
-            "--interpreter=vscode",
-            "--engineLogging=/tmp/engine.log",
+            *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
