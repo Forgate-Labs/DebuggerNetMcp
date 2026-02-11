@@ -86,6 +86,11 @@ class DapClient:
 
     async def start(self) -> None:
         """Start the netcoredbg subprocess in DAP mode."""
+        # Clear stale state from any previous session
+        self._seq = 1
+        self._pending.clear()
+        self._event_queues.clear()
+
         exe = find_netcoredbg()
         exe_dir = str(Path(exe).parent)
 

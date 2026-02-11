@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections import deque
 from enum import Enum
+from pathlib import Path
 
 from debugger_net_mcp.dap_client import DapClient
 from debugger_net_mcp.dotnet_utils import dotnet_build
@@ -34,6 +35,7 @@ class DebugSession:
         self._stop_location: dict | None = None
         self._output_listener: asyncio.Task | None = None
         self._terminated_event = asyncio.Event()
+        self._waiting_for_stop = False
 
     @property
     def state(self) -> SessionState:
@@ -82,7 +84,7 @@ class DebugSession:
         # Launch - must come BEFORE configurationDone per DAP spec
         launch_args = {
             "program": dll_path,
-            "cwd": str(__import__("pathlib").Path(dll_path).parent),
+            "cwd": str(Path(dll_path).parent),
             "stopAtEntry": stop_at_entry,
         }
         if args:
@@ -197,10 +199,11 @@ class DebugSession:
 
     async def continue_execution(self, timeout: float = 30.0) -> dict:
         """Continue execution and wait for the next stop event."""
-        self._require_state(SessionState.STOPPED)
-        self._state = SessionState.RUNNING
+        self._require_state(SessionState.STOPPED, SessionState.RUNNING)
 
-        await self._dap.send_request("continue", {"threadId": self._thread_id or 1})
+        if self._state == SessionState.STOPPED:
+            self._state = SessionState.RUNNING
+            await self._dap.send_request("continue", {"threadId": self._thread_id or 1})
 
         stopped = await self._wait_for_stop(timeout=timeout)
         if stopped:
@@ -226,6 +229,13 @@ class DebugSession:
     async def pause(self) -> dict:
         """Pause execution."""
         self._require_state(SessionState.RUNNING)
+
+        # Check if already stopped (event pending but state not updated yet)
+        pending = self._dap.drain_events("stopped")
+        if pending:
+            await self._handle_stopped_event(pending[-1])
+            return {"stopped": True, "reason": self._stop_reason, "location": self._stop_location}
+
         await self._dap.send_request("pause", {"threadId": self._thread_id or 1})
 
         stopped = await self._wait_for_stop(timeout=5.0)
@@ -403,6 +413,7 @@ class DebugSession:
         self._stop_reason = None
         self._stop_location = None
         self._terminated_event.clear()
+        self._waiting_for_stop = False
 
     async def _cleanup(self) -> None:
         if self._output_listener:
@@ -432,23 +443,12 @@ class DebugSession:
             }
         return {"stopped": False, "note": f"{command} did not complete within timeout"}
 
-    async def _wait_for_stop(self, timeout: float) -> bool:
-        """Wait for a 'stopped' event from DAP. Returns True if stopped."""
-        event = await self._dap.wait_for_event("stopped", timeout=timeout)
-        if event is None:
-            # Check if terminated
-            term = self._dap.drain_events("terminated")
-            if term:
-                await self._cleanup()
-                return False
-            return False
-
+    async def _handle_stopped_event(self, event: dict) -> None:
+        """Process a stopped event: update state, thread, reason, and location."""
         body = event.get("body", {})
         self._thread_id = body.get("threadId", self._thread_id)
         self._stop_reason = body.get("reason", "unknown")
         self._state = SessionState.STOPPED
-
-        # Fetch location
         try:
             st = await self._dap.send_request("stackTrace", {
                 "threadId": self._thread_id or 1,
@@ -464,10 +464,25 @@ class DebugSession:
                     "line": f.get("line", 0),
                     "name": f.get("name", "?"),
                 }
+            else:
+                self._stop_location = None
         except Exception:
             self._stop_location = None
 
-        return True
+    async def _wait_for_stop(self, timeout: float) -> bool:
+        """Wait for a 'stopped' event from DAP. Returns True if stopped."""
+        self._waiting_for_stop = True
+        try:
+            event = await self._dap.wait_for_event("stopped", timeout=timeout)
+            if event is None:
+                term = self._dap.drain_events("terminated")
+                if term:
+                    await self._cleanup()
+                return False
+            await self._handle_stopped_event(event)
+            return True
+        finally:
+            self._waiting_for_stop = False
 
     async def _send_pending_breakpoints(self) -> None:
         """Send all registered breakpoints to DAP."""
@@ -503,7 +518,7 @@ class DebugSession:
         return {"file": file_path, "breakpoints": result_bps}
 
     async def _listen_outputs(self) -> None:
-        """Background task to capture program output events."""
+        """Background task to capture program output and stopped events."""
         try:
             while self.is_active:
                 event = await self._dap.wait_for_event("output", timeout=1.0)
@@ -513,11 +528,17 @@ class DebugSession:
                     if text:
                         self._output_lines.append(text)
 
+                # Handle stopped events when nobody else is waiting for them
+                if not self._waiting_for_stop:
+                    stopped_events = self._dap.drain_events("stopped")
+                    if stopped_events and self._state == SessionState.RUNNING:
+                        await self._handle_stopped_event(stopped_events[-1])
+
                 # Check for terminated
                 term_events = self._dap.drain_events("terminated")
                 if term_events:
                     self._terminated_event.set()
-                    if self._state == SessionState.RUNNING:
+                    if self._state in (SessionState.RUNNING, SessionState.STOPPED):
                         self._state = SessionState.TERMINATED
                     break
 
