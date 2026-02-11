@@ -57,11 +57,38 @@ class DapClient:
     async def start(self) -> None:
         """Start the netcoredbg subprocess in DAP mode."""
         exe = find_netcoredbg()
+        exe_dir = str(Path(exe).parent)
+
+        env = os.environ.copy()
+
+        # Ensure DOTNET_ROOT is set so netcoredbg can find the runtime
+        if "DOTNET_ROOT" not in env:
+            dotnet_path = shutil.which("dotnet")
+            if dotnet_path:
+                env["DOTNET_ROOT"] = str(Path(dotnet_path).resolve().parent)
+            else:
+                candidate = Path.home() / ".dotnet"
+                if candidate.is_dir():
+                    env["DOTNET_ROOT"] = str(candidate)
+
+        if "DOTNET_ROOT" in env:
+            env["PATH"] = f"{env['DOTNET_ROOT']}:{env.get('PATH', '')}"
+
+        # LD_LIBRARY_PATH: netcoredbg needs to find libdbgshim.so
+        # Check alongside the binary and in lib/netcoredbg/
+        lib_dirs = [exe_dir]
+        lib_netcoredbg = str(Path(exe_dir).parent / "lib" / "netcoredbg")
+        if Path(lib_netcoredbg).is_dir():
+            lib_dirs.append(lib_netcoredbg)
+        existing_ld = env.get("LD_LIBRARY_PATH", "")
+        env["LD_LIBRARY_PATH"] = ":".join(lib_dirs) + (":" + existing_ld if existing_ld else "")
+
         self._process = await asyncio.create_subprocess_exec(
             exe, "--interpreter=vscode",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         self._closed = False
         self._buffer = b""
