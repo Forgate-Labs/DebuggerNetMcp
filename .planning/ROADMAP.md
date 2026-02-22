@@ -84,7 +84,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-02-22 |
-| 2. Interop + Engine Foundation | 0/TBD | Not started | - |
+| 2. Interop + Engine Foundation | 1/3 | In Progress|  |
 | 3. Debug Engine | 0/TBD | Not started | - |
 | 4. MCP Server | 0/TBD | Not started | - |
 | 5. Tests + Docs | 0/TBD | Not started | - |
