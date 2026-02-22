@@ -1,13 +1,25 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
 dist/
-build/
 .eggs/
 *.egg
-.netcoredbg_hist
 .venv/
 .env
+
+# .NET build outputs
+bin/
+obj/
+
+# .NET tools and project artifacts
+*.user
+*.suo
+.vs/
+*.swp
+
+# Misc
+.netcoredbg_hist
 native/build/
 lib/
