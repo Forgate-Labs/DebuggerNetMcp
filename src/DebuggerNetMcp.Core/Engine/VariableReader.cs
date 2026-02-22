@@ -272,6 +272,9 @@ internal static class VariableReader
 
     private static VariableInfo ReadObject(string name, ICorDebugValue value, int depth, string typeName)
     {
+        if (depth > MaxDepth)
+            return new VariableInfo(name, typeName, "<max depth>", Array.Empty<VariableInfo>());
+
         // For reference types (Object, Class): dereference first before casting to ICorDebugObjectValue.
         // For value types (ValueType/struct): no dereference needed — cast directly.
         ICorDebugValue actualValue = value;
@@ -297,10 +300,101 @@ internal static class VariableReader
             }
         }
 
-        // Phase 2: return a placeholder for object field enumeration.
-        // Full field enumeration via ICorDebugObjectValue.GetFieldValue requires knowing field
-        // metadata tokens from ICorDebugModule.GetMetaDataInterface — this is the Phase 3 integration.
-        // Phase 3 (DotnetDebugger.cs) will add metadata-driven field enumeration here.
-        return new VariableInfo(name, typeName, "<object>", Array.Empty<VariableInfo>());
+        if (actualValue is not ICorDebugObjectValue objVal)
+            return new VariableInfo(name, typeName, "<not an object>", Array.Empty<VariableInfo>());
+
+        return ReadObjectFields(name, typeName, objVal, depth);
+    }
+
+    private static VariableInfo ReadObjectFields(string name, string typeName, ICorDebugObjectValue objVal, int depth)
+    {
+        const int FIELD_BUFFER_SIZE = 256;
+
+        try
+        {
+            // Get the class and its typedef token
+            objVal.GetClass(out ICorDebugClass cls);
+            cls.GetToken(out uint typedefToken);
+            cls.GetModule(out ICorDebugModule module);
+
+            // Get IMetaDataImportMinimal from the module using its well-known GUID.
+            // [ComImport] interface uses Marshal.GetObjectForIUnknown (classic COM interop path).
+            var iid = new Guid("7DAC8207-D3AE-4C75-9B67-92801A497D44");
+            module.GetMetaDataInterface(in iid, out IntPtr ppMeta);
+            if (ppMeta == IntPtr.Zero)
+                return new VariableInfo(name, typeName, "<no metadata>", Array.Empty<VariableInfo>());
+
+#pragma warning disable CA1416  // IMetaDataImportMinimal uses [ComImport] — GetObjectForIUnknown is the correct path
+            var meta = (IMetaDataImportMinimal)Marshal.GetObjectForIUnknown(ppMeta);
+#pragma warning restore CA1416
+            Marshal.Release(ppMeta);  // RCW now holds the reference
+
+            // Enumerate fields
+            var children = new List<VariableInfo>();
+            IntPtr hEnum = IntPtr.Zero;
+
+            try
+            {
+                var fieldTokens = new uint[32];
+                while (true)
+                {
+                    meta.EnumFields(ref hEnum, typedefToken, fieldTokens, (uint)fieldTokens.Length, out uint fetched);
+                    if (fetched == 0)
+                        break;
+
+                    for (uint i = 0; i < fetched; i++)
+                    {
+                        uint fieldToken = fieldTokens[i];
+                        try
+                        {
+                            // Get field name via native buffer (IntPtr-based API)
+                            string fieldName = GetFieldName(meta, fieldToken, FIELD_BUFFER_SIZE);
+
+                            // Get field value and recurse
+                            objVal.GetFieldValue(cls, fieldToken, out ICorDebugValue fieldVal);
+                            children.Add(ReadValue(fieldName, fieldVal, depth + 1));
+                        }
+                        catch { /* skip unreadable fields */ }
+                    }
+                }
+            }
+            finally
+            {
+                meta.CloseEnum(hEnum);
+            }
+
+            return new VariableInfo(name, typeName, $"{{fields: {children.Count}}}", children);
+        }
+        catch (Exception ex)
+        {
+            return new VariableInfo(name, typeName, $"<error: {ex.Message}>", Array.Empty<VariableInfo>());
+        }
+    }
+
+    private static string GetFieldName(IMetaDataImportMinimal meta, uint fieldToken, int bufferSize)
+    {
+        IntPtr nameBuffer = Marshal.AllocHGlobal(bufferSize * 2);  // Unicode chars (2 bytes each)
+        try
+        {
+            meta.GetFieldProps(fieldToken,
+                out _,           // pClass
+                nameBuffer,      // szField
+                (uint)bufferSize,
+                out uint pchField,
+                out _,           // pdwAttr
+                out _,           // ppvSigBlob
+                out _,           // pcbSigBlob
+                out _,           // pdwCPlusTypeFlag
+                out _,           // ppValue
+                out _);          // pcchValue
+
+            // pchField includes the null terminator — subtract 1 for the string length
+            int len = (int)pchField > 0 ? (int)pchField - 1 : 0;
+            return Marshal.PtrToStringUni(nameBuffer, len) ?? $"<field_{fieldToken:X8}>";
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(nameBuffer);
+        }
     }
 }
