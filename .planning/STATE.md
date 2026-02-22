@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 3 of 5 (Debug Engine)
-Plan: 4 of 5 in current phase
-Status: Executing
-Last activity: 2026-02-22 — Completed 03-04 (DotnetDebugger.cs — execution control + breakpoint management: SetBreakpointAsync, RemoveBreakpointAsync, ContinueAsync, PauseAsync, StepOverAsync, StepIntoAsync, StepOutAsync)
+Plan: 5 of 5 in current phase — COMPLETE
+Status: Phase Complete
+Last activity: 2026-02-22 — Completed 03-05 (DotnetDebugger.cs inspection methods: GetStackTraceAsync, GetLocalsAsync, EvaluateAsync; VariableReader.ReadObjectFields; PdbReader.GetLocalNames)
 
-Progress: [███████░░░] ~60%
+Progress: [████████░░] ~75%
 
 ## Performance Metrics
 
@@ -40,6 +40,7 @@ Progress: [███████░░░] ~60%
 | Phase 03-debug-engine P02 | 2min | 1 tasks | 1 files |
 | Phase 03-debug-engine P03 | 3min | 1 tasks | 1 files |
 | Phase 03-debug-engine P04 | 2min | 2 tasks | 2 files |
+| Phase 03 P05 | 2min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [Phase 03-debug-engine]: ResolveBreakpoint as regular private stub (not partial method) — DotnetDebugger is not declared partial class
 - [Phase 03-debug-engine]: PdbReader.FindLocation throws on miss (not null) — used try/catch instead of null check from plan template
 - [Phase 03-debug-engine]: BreakpointTokenToId keyed by uint methodDef (not Marshal.GetIUnknownForObject nint) — COM proxy identity instability on Linux
+- [Phase 03]: ICorDebugChain GeneratedComInterface stub requires full vtable through EnumerateFrames per cordebug.idl
+- [Phase 03]: Marshal.GetObjectForIUnknown retained for IMetaDataImportMinimal (CA1416 suppressed) — ComImport interfaces cannot use StrategyBasedComWrappers
+- [Phase 03]: GetStackTraceAsync source location deferred — PdbReader only has forward (source->IL) lookup; reverse IL->source lookup is future work
 
 ### Pending Todos
 
@@ -81,12 +85,11 @@ None.
 
 ### Blockers/Concerns
 
-- Phase 3 (Debug Engine) is the highest-risk phase: ICorDebug COM interop on Linux is underdocumented; dedicated thread + Channel pattern needs careful implementation
+- Phase 3 complete. GetStackTraceAsync returns method tokens (0x0600xxxx) not human-readable names — reverse PDB (IL→source) lookup deferred to Phase 4/5.
 - libdbgshim.so path: must be discovered dynamically; reference location is ~/.local/bin/ (CoreCLR 9.0.13)
-- Plan 03-05 is the final plan in Phase 3: GetStackFramesAsync, GetVariablesAsync, EvaluateExpressionAsync
 
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03-04-PLAN.md (DotnetDebugger.cs — execution control + breakpoint management)
+Stopped at: Completed 03-05-PLAN.md (DotnetDebugger.cs inspection methods + VariableReader ReadObject + PdbReader.GetLocalNames)
 Resume file: None
