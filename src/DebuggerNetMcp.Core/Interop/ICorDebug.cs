@@ -425,6 +425,8 @@ internal partial interface ICorDebugChain
 [Guid("CC7BCAF5-8A68-11D2-983C-0000F808342D")]
 internal partial interface ICorDebugClass
 {
+    void GetModule(out ICorDebugModule pModule);
+    void GetToken(out uint pTypeDef);
 }
 
 [GeneratedComInterface]
