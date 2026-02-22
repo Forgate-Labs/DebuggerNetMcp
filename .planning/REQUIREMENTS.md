@@ -32,7 +32,7 @@
 - [ ] **ENGINE-05**: DotnetDebugger.cs — controle de execução: ContinueAsync, StepOverAsync, StepIntoAsync, StepOutAsync, PauseAsync
 - [ ] **ENGINE-06**: DotnetDebugger.cs — breakpoints: SetBreakpointAsync(file, line), RemoveBreakpointAsync(id)
 - [ ] **ENGINE-07**: DotnetDebugger.cs — inspeção: GetStackTraceAsync, GetLocalsAsync, EvaluateAsync
-- [ ] **ENGINE-08**: Thread dedicada para ICorDebug + Channel<DebugEvent> para comunicação async com as tools MCP
+- [x] **ENGINE-08**: Thread dedicada para ICorDebug + Channel<DebugEvent> para comunicação async com as tools MCP
 
 ### MCP Server (C#)
 
@@ -90,7 +90,7 @@
 | ENGINE-05 | Phase 3 | Pending |
 | ENGINE-06 | Phase 3 | Pending |
 | ENGINE-07 | Phase 3 | Pending |
-| ENGINE-08 | Phase 3 | Pending |
+| ENGINE-08 | Phase 3 | Complete |
 | MCP-01 | Phase 4 | Pending |
 | MCP-02 | Phase 4 | Pending |
 | TEST-01 | Phase 4 | Pending |

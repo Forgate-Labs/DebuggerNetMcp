@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Phase 2 - Interop Engine Foundation
+**Current focus:** Phase 3 - Debug Engine
 
 ## Current Position
 
-Phase: 2 of 5 (Interop Engine Foundation)
-Plan: 3 of 4 in current phase
+Phase: 3 of 5 (Debug Engine)
+Plan: 1 of 5 in current phase
 Status: Executing
-Last activity: 2026-02-22 — Completed 02-03 (PdbReader + VariableReader — source-to-IL mapping and value inspection)
+Last activity: 2026-02-22 — Completed 03-01 (COM interop extensions: ICorDebugClass.GetToken + IMetaDataImportMinimal)
 
-Progress: [█████░░░░░] ~50%
+Progress: [██████░░░░] ~55%
 
 ## Performance Metrics
 
@@ -36,6 +36,7 @@ Progress: [█████░░░░░] ~50%
 
 *Updated after each plan completion*
 | Phase 02-interop-engine-foundation P03 | 3min | 2 tasks | 2 files |
+| Phase 03-debug-engine P01 | 1min | 1 task | 2 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Recent decisions affecting current work:
 - [Phase 02-interop-engine-foundation]: CorElementType defined in VariableReader.cs (not ICorDebug.cs) — metadata concept, not COM interface concern
 - [Phase 02-interop-engine-foundation]: Object field enumeration deferred to Phase 3 — requires ICorDebugModule.GetMetaDataInterface with running process
 - [Phase 02-interop-engine-foundation]: FindAllLocations returns empty list (not throw) on FileNotFoundException — async methods map one source line to multiple SPs
+- [Phase 03-debug-engine]: ICorDebugClass.GetModule added before GetToken to match cordebug.idl vtable order
+- [Phase 03-debug-engine]: IMetaDataImportMinimal uses [ComImport] not [GeneratedComInterface] — 62 vtable slots declared to preserve correct offsets for EnumFields (17) and GetFieldProps (54)
 
 ### Pending Todos
 
@@ -76,5 +79,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 02-03-PLAN.md (PdbReader + VariableReader — source-to-IL mapping and value inspection)
+Stopped at: Completed 03-01-PLAN.md (COM interop extensions: ICorDebugClass.GetToken + IMetaDataImportMinimal)
 Resume file: None

@@ -92,6 +92,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-02-22 |
 | 2. Interop + Engine Foundation | 3/3 | Complete   | 2026-02-22 |
-| 3. Debug Engine | 0/5 | Not started | - |
+| 3. Debug Engine | 1/5 | In Progress|  |
 | 4. MCP Server | 0/TBD | Not started | - |
 | 5. Tests + Docs | 0/TBD | Not started | - |
