@@ -100,6 +100,60 @@ internal static class PdbReader
         return results;
     }
 
+    /// <summary>
+    /// Returns a mapping from local variable slot index to name for the given method.
+    /// Reads MethodDebugInformation from the PDB and enumerates LocalScope variables.
+    /// Returns an empty dictionary if the method is not found or PDB is not available.
+    /// </summary>
+    /// <param name="dllPath">Absolute path to the compiled .NET assembly (.dll).</param>
+    /// <param name="methodToken">The method's metadata token (e.g., 0x06000001).</param>
+    /// <returns>Dictionary mapping slot index to variable name.</returns>
+    public static Dictionary<int, string> GetLocalNames(string dllPath, int methodToken)
+    {
+        var result = new Dictionary<int, string>();
+
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            using var pdbProvider = OpenPdbProvider(peReader, dllPath);
+            var pdbMetadata = pdbProvider.GetMetadataReader();
+
+            // Build the MethodDebugInformationHandle from the method token row number
+            int rowNumber = methodToken & 0x00FFFFFF;
+            var methodHandle = MetadataTokens.MethodDefinitionHandle(rowNumber);
+            var debugHandle = methodHandle.ToDebugInformationHandle();
+
+            var debugInfo = pdbMetadata.GetMethodDebugInformation(debugHandle);
+
+            // Enumerate local scopes for this method
+            foreach (var localScopeHandle in pdbMetadata.GetLocalScopes(methodHandle))
+            {
+                var scope = pdbMetadata.GetLocalScope(localScopeHandle);
+                foreach (var localVarHandle in scope.GetLocalVariables())
+                {
+                    var localVar = pdbMetadata.GetLocalVariable(localVarHandle);
+                    string varName = pdbMetadata.GetString(localVar.Name);
+                    int slotIndex = localVar.Index;
+                    result.TryAdd(slotIndex, varName);  // first name wins if duplicates
+                }
+            }
+        }
+        catch (FileNotFoundException)
+        {
+            // PDB not found — return empty
+        }
+        catch (BadImageFormatException)
+        {
+            // Malformed PDB — return empty
+        }
+        catch (InvalidOperationException)
+        {
+            // Method not found in PDB — return empty
+        }
+
+        return result;
+    }
+
     // ---------------------------------------------------------------------------
     // Private helpers
     // ---------------------------------------------------------------------------

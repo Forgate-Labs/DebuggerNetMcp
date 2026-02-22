@@ -525,6 +525,260 @@ public sealed class DotnetDebugger : IAsyncDisposable
     }
 
     // -----------------------------------------------------------------------
+    // Public API — Inspection
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns a snapshot of the current call stack.
+    /// Must be called while the debuggee is stopped (at a breakpoint, step, or pause).
+    /// </summary>
+    public async Task<IReadOnlyList<StackFrameInfo>> GetStackTraceAsync(CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<IReadOnlyList<StackFrameInfo>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await DispatchAsync(() =>
+        {
+            try
+            {
+                var frames = new List<StackFrameInfo>();
+                ICorDebugThread thread = GetCurrentThread();
+
+                // Enumerate chains on the thread
+                thread.EnumerateChains(out ICorDebugChainEnum chainEnum);
+                var chains = new ICorDebugChain[1];
+                int frameIndex = 0;
+
+                while (true)
+                {
+                    chainEnum.Next(1, chains, out uint chainFetched);
+                    if (chainFetched == 0) break;
+
+                    chains[0].EnumerateFrames(out ICorDebugFrameEnum frameEnum);
+                    var frameArr = new ICorDebugFrame[1];
+
+                    while (true)
+                    {
+                        frameEnum.Next(1, frameArr, out uint frameFetched);
+                        if (frameFetched == 0) break;
+
+                        var frame = frameArr[0];
+                        try
+                        {
+                            if (frame is ICorDebugILFrame ilFrame)
+                            {
+                                ilFrame.GetIP(out uint ip, out _);
+                                frame.GetFunction(out ICorDebugFunction fn);
+                                fn.GetToken(out uint methodToken);
+                                fn.GetModule(out ICorDebugModule module);
+
+                                uint nameLen = 512;
+                                IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
+                                string dllPath;
+                                try
+                                {
+                                    module.GetName(nameLen, out _, namePtr);
+                                    dllPath = Marshal.PtrToStringUni(namePtr) ?? string.Empty;
+                                }
+                                finally
+                                {
+                                    Marshal.FreeHGlobal(namePtr);
+                                }
+
+                                // Try to get source location from PDB (best-effort)
+                                string? sourceFile = null;
+                                int? sourceLine = null;
+                                // TODO: add PdbReader.FindSourceLocation(dllPath, methodToken, ilOffset)
+                                // for reverse IL-offset → source line mapping. Deferred to future work.
+
+                                frames.Add(new StackFrameInfo(
+                                    frameIndex++,
+                                    $"0x{methodToken:X8}",
+                                    sourceFile,
+                                    sourceLine,
+                                    (int)ip));
+                            }
+                            else
+                            {
+                                frameIndex++;
+                            }
+                        }
+                        catch { frameIndex++; /* skip unreadable frames */ }
+                    }
+                }
+
+                tcs.SetResult(frames);
+            }
+            catch (Exception ex) { tcs.SetException(ex); }
+        }, ct);
+
+        return await tcs.Task.WaitAsync(ct);
+    }
+
+    /// <summary>
+    /// Returns local variables in the current stack frame.
+    /// Uses PDB slot-to-name mapping and ICorDebugILFrame.GetLocalVariable for values.
+    /// Must be called while stopped.
+    /// </summary>
+    public async Task<IReadOnlyList<VariableInfo>> GetLocalsAsync(CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<IReadOnlyList<VariableInfo>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await DispatchAsync(() =>
+        {
+            try
+            {
+                const int CORDBG_E_IL_VAR_NOT_AVAILABLE = unchecked((int)0x80131304);
+                var result = new List<VariableInfo>();
+
+                ICorDebugThread thread = GetCurrentThread();
+                thread.GetActiveFrame(out ICorDebugFrame frame);
+
+                if (frame is not ICorDebugILFrame ilFrame)
+                {
+                    tcs.SetResult(result);  // native frame — no locals
+                    return;
+                }
+
+                // Get the method token and dll path for PDB-based name lookup
+                frame.GetFunction(out ICorDebugFunction fn);
+                fn.GetToken(out uint methodToken);
+                fn.GetModule(out ICorDebugModule module);
+
+                uint nameLen = 512;
+                IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
+                string dllPath;
+                try
+                {
+                    module.GetName(nameLen, out _, namePtr);
+                    dllPath = Marshal.PtrToStringUni(namePtr) ?? string.Empty;
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(namePtr);
+                }
+
+                // Get local variable names from PDB (slot index → name)
+                Dictionary<int, string> localNames = new();
+                try
+                {
+                    localNames = PdbReader.GetLocalNames(dllPath, (int)methodToken);
+                }
+                catch { /* PDB not available — use generic names */ }
+
+                // Enumerate locals by index; CORDBG_E_IL_VAR_NOT_AVAILABLE signals end
+                for (uint i = 0; i < 256; i++)
+                {
+                    try
+                    {
+                        ilFrame.GetLocalVariable(i, out ICorDebugValue val);
+                        string varName = localNames.TryGetValue((int)i, out string? n) ? n : $"local_{i}";
+                        result.Add(VariableReader.ReadValue(varName, val));
+                    }
+                    catch (COMException ex) when (ex.HResult == CORDBG_E_IL_VAR_NOT_AVAILABLE)
+                    {
+                        break;  // No more variables
+                    }
+                    catch
+                    {
+                        break;  // Other errors — stop enumeration
+                    }
+                }
+
+                tcs.SetResult(result);
+            }
+            catch (Exception ex) { tcs.SetException(ex); }
+        }, ct);
+
+        return await tcs.Task.WaitAsync(ct);
+    }
+
+    /// <summary>
+    /// Evaluates a simple expression in the context of the current frame.
+    /// Currently supports local variable lookup by name only (full expression eval requires
+    /// ICorDebugEval which needs a running runtime — deferred to future work).
+    /// </summary>
+    public async Task<EvalResult> EvaluateAsync(string expression, CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<EvalResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await DispatchAsync(() =>
+        {
+            try
+            {
+                const int CORDBG_E_IL_VAR_NOT_AVAILABLE = unchecked((int)0x80131304);
+
+                ICorDebugThread thread = GetCurrentThread();
+                thread.GetActiveFrame(out ICorDebugFrame frame);
+
+                if (frame is not ICorDebugILFrame ilFrame)
+                {
+                    tcs.SetResult(new EvalResult(false, string.Empty, "No IL frame available"));
+                    return;
+                }
+
+                frame.GetFunction(out ICorDebugFunction fn);
+                fn.GetToken(out uint methodToken);
+                fn.GetModule(out ICorDebugModule module);
+
+                uint nameLen = 512;
+                IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
+                string dllPath;
+                try
+                {
+                    module.GetName(nameLen, out _, namePtr);
+                    dllPath = Marshal.PtrToStringUni(namePtr) ?? string.Empty;
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(namePtr);
+                }
+
+                Dictionary<int, string> localNames = new();
+                try { localNames = PdbReader.GetLocalNames(dllPath, (int)methodToken); }
+                catch { }
+
+                // Find the slot matching the expression (variable name lookup)
+                int? matchedSlot = null;
+                foreach (var kv in localNames)
+                {
+                    if (kv.Value.Equals(expression, StringComparison.Ordinal))
+                    {
+                        matchedSlot = kv.Key;
+                        break;
+                    }
+                }
+
+                if (matchedSlot is null)
+                {
+                    tcs.SetResult(new EvalResult(false, string.Empty,
+                        $"Variable '{expression}' not found in current scope"));
+                    return;
+                }
+
+                try
+                {
+                    ilFrame.GetLocalVariable((uint)matchedSlot.Value, out ICorDebugValue val);
+                    var varInfo = VariableReader.ReadValue(expression, val);
+                    tcs.SetResult(new EvalResult(true, varInfo.Value, null));
+                }
+                catch (COMException ex) when (ex.HResult == CORDBG_E_IL_VAR_NOT_AVAILABLE)
+                {
+                    tcs.SetResult(new EvalResult(false, string.Empty,
+                        "Variable not available at this location"));
+                }
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+        }, ct);
+
+        return await tcs.Task.WaitAsync(ct);
+    }
+
+    // -----------------------------------------------------------------------
     // Private: Pending breakpoint record
     // -----------------------------------------------------------------------
 

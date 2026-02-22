@@ -419,6 +419,20 @@ internal partial interface ICorDebugAssembly
 [Guid("CC7BCAEE-8A68-11D2-983C-0000F808342D")]
 internal partial interface ICorDebugChain
 {
+    // vtable: GetThread, GetRanges, GetContext, GetCaller, GetCallee, GetPrevious, GetNext, IsManaged,
+    //         EnumerateFrames, GetActiveFrame, GetRegisterSet, GetReason
+    void GetThread(out ICorDebugThread ppThread);
+    void GetRanges(ICorDebugContext? pContext, uint celt, [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 1)] uint[] ranges, out uint pceltFetched);
+    void GetContext(out ICorDebugContext ppContext);
+    void GetCaller(out ICorDebugChain ppChain);
+    void GetCallee(out ICorDebugChain ppChain);
+    void GetPrevious(out ICorDebugChain ppChain);
+    void GetNext(out ICorDebugChain ppChain);
+    void IsManaged(out int pManaged);
+    void EnumerateFrames(out ICorDebugFrameEnum ppFrames);
+    void GetActiveFrame(out ICorDebugFrame ppFrame);
+    void GetRegisterSet(out ICorDebugRegisterSet ppRegisters);
+    void GetReason(out int pReason);
 }
 
 [GeneratedComInterface]
@@ -498,6 +512,22 @@ internal partial interface ICorDebugAppDomainEnum
 [Guid("CC7BCB08-8A68-11D2-983C-0000F808342D")]
 internal partial interface ICorDebugChainEnum
 {
+    void Skip(uint celt);
+    void Reset();
+    void Clone(out ICorDebugChainEnum ppEnum);
+    void GetCount(out uint pcelt);
+    void Next(uint celt, [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 0)] ICorDebugChain[] objects, out uint pceltFetched);
+}
+
+[GeneratedComInterface]
+[Guid("CC7BCB09-8A68-11D2-983C-0000F808342D")]
+internal partial interface ICorDebugFrameEnum
+{
+    void Skip(uint celt);
+    void Reset();
+    void Clone(out ICorDebugFrameEnum ppEnum);
+    void GetCount(out uint pcelt);
+    void Next(uint celt, [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 0)] ICorDebugFrame[] objects, out uint pceltFetched);
 }
 
 [GeneratedComInterface]
