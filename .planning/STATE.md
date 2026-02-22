@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 1 of 5 (Foundation)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-22 — Roadmap created
+Plan: 2 of TBD in current phase
+Status: Executing
+Last activity: 2026-02-22 — Completed 01-02 (CMake native ptrace wrapper)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] ~20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 2
+- Average duration: ~8 min/plan
+- Total execution time: ~16 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-foundation | 2 | ~16min | ~8min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 01-01 (research), 01-02 (CMake native)
+- Trend: On track
 
 *Updated after each plan completion*
 
@@ -46,10 +46,12 @@ Recent decisions affecting current work:
 - [Pre-Phase 1]: PTRACE_SEIZE (not PTRACE_ATTACH) — kernel 6.12+ compatible
 - [Pre-Phase 1]: Channel<DebugEvent> for async — decouples ICorDebug thread from MCP tools
 - [Pre-Phase 1]: Dedicated thread for ICorDebug — COM requirement, all access on same thread
+- [01-02]: LIBRARY_OUTPUT_DIRECTORY set to lib/ in CMakeLists.txt — avoids copy step in build.sh
+- [01-02]: #include <stddef.h> required for NULL in GCC 13 strict C mode — added to ptrace_wrapper.c
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
@@ -59,5 +61,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Roadmap created, no phases planned yet
+Stopped at: Completed 01-02-PLAN.md (CMake native ptrace wrapper library)
 Resume file: None

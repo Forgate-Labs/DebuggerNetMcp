@@ -15,8 +15,8 @@
 
 ### Native (C/ptrace)
 
-- [ ] **NATIVE-01**: ptrace_wrapper.c com PTRACE_SEIZE — funções: dbg_attach, dbg_detach, dbg_interrupt, dbg_continue, dbg_wait
-- [ ] **NATIVE-02**: CMakeLists.txt que compila como libdotnetdbg.so
+- [x] **NATIVE-01**: ptrace_wrapper.c com PTRACE_SEIZE — funções: dbg_attach, dbg_detach, dbg_interrupt, dbg_continue, dbg_wait
+- [x] **NATIVE-02**: CMakeLists.txt que compila como libdotnetdbg.so
 
 ### Interop (C#/COM)
 
@@ -79,8 +79,8 @@
 | INFRA-03 | Phase 1 | Pending |
 | INFRA-04 | Phase 1 | Pending |
 | INFRA-05 | Phase 1 | Pending |
-| NATIVE-01 | Phase 1 | Pending |
-| NATIVE-02 | Phase 1 | Pending |
+| NATIVE-01 | Phase 1 | Complete |
+| NATIVE-02 | Phase 1 | Complete |
 | INTEROP-01 | Phase 2 | Pending |
 | INTEROP-02 | Phase 2 | Pending |
 | ENGINE-01 | Phase 2 | Pending |
@@ -105,4 +105,4 @@
 
 ---
 *Requirements defined: 2026-02-22*
-*Last updated: 2026-02-22 — traceability confirmed after roadmap creation*
+*Last updated: 2026-02-22 — NATIVE-01, NATIVE-02 complete (01-02-PLAN.md executed)*

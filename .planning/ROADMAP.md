@@ -28,7 +28,7 @@ Complete rewrite from Python/netcoredbg to C#/ICorDebug. Phase 1 wipes the Pytho
 
 Plans:
 - [ ] 01-01-PLAN.md — Delete Python artifacts + scaffold .NET 10 solution (INFRA-01, INFRA-02, INFRA-03)
-- [ ] 01-02-PLAN.md — CMake native ptrace wrapper library (NATIVE-01, NATIVE-02)
+- [x] 01-02-PLAN.md — CMake native ptrace wrapper library (NATIVE-01, NATIVE-02)
 - [ ] 01-03-PLAN.md — build.sh + install.sh orchestration scripts (INFRA-04, INFRA-05)
 
 ### Phase 2: Interop + Engine Foundation
@@ -78,7 +78,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
+| 1. Foundation | 1/3 | In progress | - |
 | 2. Interop + Engine Foundation | 0/TBD | Not started | - |
 | 3. Debug Engine | 0/TBD | Not started | - |
 | 4. MCP Server | 0/TBD | Not started | - |
