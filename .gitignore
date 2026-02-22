@@ -9,3 +9,5 @@ build/
 .netcoredbg_hist
 .venv/
 .env
+native/build/
+lib/
