@@ -7,9 +7,9 @@
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Deletar todo o código Python existente (src/, pyproject.toml, uv.lock, requirements*.txt)
-- [ ] **INFRA-02**: Criar solution .NET 10 com 4 projetos: DebuggerNetMcp.Native (C/CMake), DebuggerNetMcp.Core (class library), DebuggerNetMcp.Mcp (console app), DebuggerNetMcp.Tests (xUnit)
-- [ ] **INFRA-03**: global.json com SDK 10.0.0, rollForward latestMinor
+- [x] **INFRA-01**: Deletar todo o código Python existente (src/, pyproject.toml, uv.lock, requirements*.txt)
+- [x] **INFRA-02**: Criar solution .NET 10 com 4 projetos: DebuggerNetMcp.Native (C/CMake), DebuggerNetMcp.Core (class library), DebuggerNetMcp.Mcp (console app), DebuggerNetMcp.Tests (xUnit)
+- [x] **INFRA-03**: global.json com SDK 10.0.0, rollForward latestMinor
 - [ ] **INFRA-04**: build.sh que compila Native com CMake, copia libdotnetdbg.so e executa dotnet build -c Release
 - [ ] **INFRA-05**: install.sh que registra o MCP no Claude Code via `claude mcp add`
 
@@ -74,9 +74,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
+| INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Pending |
 | INFRA-05 | Phase 1 | Pending |
 | NATIVE-01 | Phase 1 | Complete |

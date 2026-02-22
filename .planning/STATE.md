@@ -46,6 +46,9 @@ Recent decisions affecting current work:
 - [Pre-Phase 1]: PTRACE_SEIZE (not PTRACE_ATTACH) — kernel 6.12+ compatible
 - [Pre-Phase 1]: Channel<DebugEvent> for async — decouples ICorDebug thread from MCP tools
 - [Pre-Phase 1]: Dedicated thread for ICorDebug — COM requirement, all access on same thread
+- [01-01]: SDK pinned to 10.0.0 with rollForward latestMinor — allows patch updates, blocks major/minor
+- [01-01]: Core is classlib, Mcp is thin console entry point — clean separation of logic from wiring
+- [01-01]: Tests references Core only (not Mcp) — unit tests target library logic directly
 - [01-02]: LIBRARY_OUTPUT_DIRECTORY set to lib/ in CMakeLists.txt — avoids copy step in build.sh
 - [01-02]: #include <stddef.h> required for NULL in GCC 13 strict C mode — added to ptrace_wrapper.c
 
@@ -61,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 01-02-PLAN.md (CMake native ptrace wrapper library)
+Stopped at: Completed 01-01-PLAN.md (C# solution scaffold — Python removal + .NET 10 setup)
 Resume file: None
