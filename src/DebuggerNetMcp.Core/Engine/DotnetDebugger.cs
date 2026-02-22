@@ -30,9 +30,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
 
     private ICorDebug? _corDebug;
     private ICorDebugProcess? _process;
-#pragma warning disable CS0414 // Field assigned but value never used — consumed in Plan 04
     private int _nextBreakpointId = 1;
-#pragma warning restore CS0414
 
     // Pending breakpoints: set before the module loads
     private readonly List<PendingBreakpoint> _pendingBreakpoints = new();
@@ -277,10 +275,98 @@ public sealed class DotnetDebugger : IAsyncDisposable
         }
     }
 
-    // ResolveBreakpoint stub — implemented in Plan 04
     private void ResolveBreakpoint(ICorDebugModule module, int id, int methodToken, int ilOffset)
     {
-        throw new NotImplementedException("ResolveBreakpoint will be implemented in Plan 04");
+        module.GetFunctionFromToken((uint)methodToken, out ICorDebugFunction fn);
+        fn.CreateBreakpoint(out ICorDebugFunctionBreakpoint bp);
+        bp.Activate(1);  // 1 = enabled
+        _activeBreakpoints[id] = bp;
+
+        // Register for hit reporting: use the stable methodDef token as key
+        // (BreakpointTokenToId key is uint methodDef, per STATE.md decision)
+        _callbackHandler.BreakpointTokenToId[(uint)methodToken] = id;
+    }
+
+    // -----------------------------------------------------------------------
+    // Public API — Breakpoint management
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Sets a breakpoint at the given source file and line number.
+    /// Returns the breakpoint ID. If the module is not yet loaded, queues as pending.
+    /// </summary>
+    public async Task<int> SetBreakpointAsync(string dllPath, string sourceFile, int line,
+        CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await DispatchAsync(() =>
+        {
+            try
+            {
+                int id = _nextBreakpointId++;
+
+                // Resolve (methodToken, ilOffset) from the PDB
+                int methodToken, ilOffset;
+                try
+                {
+                    (methodToken, ilOffset) = PdbReader.FindLocation(dllPath, sourceFile, line);
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(new InvalidOperationException(
+                        $"Cannot find source location {sourceFile}:{line} in {dllPath}", ex));
+                    return;
+                }
+
+                string dllName = Path.GetFileName(dllPath);
+
+                // Look for the loaded module
+                ICorDebugModule? module = null;
+                foreach (var kvp in _loadedModules)
+                {
+                    if (kvp.Key.EndsWith(dllName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        module = kvp.Value;
+                        break;
+                    }
+                }
+
+                if (module is not null)
+                {
+                    ResolveBreakpoint(module, id, methodToken, ilOffset);
+                }
+                else
+                {
+                    // Module not loaded yet — queue as pending
+                    _pendingBreakpoints.Add(new PendingBreakpoint(id, dllName, methodToken, ilOffset));
+                }
+
+                tcs.SetResult(id);
+            }
+            catch (Exception ex) { tcs.SetException(ex); }
+        }, ct);
+
+        return await tcs.Task.WaitAsync(ct);
+    }
+
+    /// <summary>
+    /// Deactivates and removes a breakpoint by ID.
+    /// </summary>
+    public async Task RemoveBreakpointAsync(int breakpointId, CancellationToken ct = default)
+    {
+        await DispatchAsync(() =>
+        {
+            // Remove from active breakpoints
+            if (_activeBreakpoints.TryGetValue(breakpointId, out var bp))
+            {
+                try { bp.Activate(0); } catch { /* ignore if process is gone */ }
+                _activeBreakpoints.Remove(breakpointId);
+            }
+
+            // Remove from pending breakpoints
+            _pendingBreakpoints.RemoveAll(p => p.Id == breakpointId);
+        }, ct);
     }
 
     // -----------------------------------------------------------------------
@@ -349,6 +435,93 @@ public sealed class DotnetDebugger : IAsyncDisposable
     private async Task DispatchAsync(Action action, CancellationToken ct)
     {
         await _commandChannel.Writer.WriteAsync(action, ct);
+    }
+
+    // -----------------------------------------------------------------------
+    // Public API — Execution control
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Resumes execution of the debuggee process.
+    /// </summary>
+    public async Task ContinueAsync(CancellationToken ct = default)
+    {
+        await DispatchAsync(() =>
+        {
+            _process?.Continue(0);
+        }, ct);
+    }
+
+    /// <summary>
+    /// Pauses the debuggee process.
+    /// </summary>
+    public async Task PauseAsync(CancellationToken ct = default)
+    {
+        await DispatchAsync(() =>
+        {
+            _process?.Stop(0);
+        }, ct);
+    }
+
+    /// <summary>
+    /// Steps over the current source line (does not enter called methods).
+    /// </summary>
+    public async Task StepOverAsync(CancellationToken ct = default)
+        => await StepAsync(stepIn: false, ct: ct);
+
+    /// <summary>
+    /// Steps into the current source line (enters called methods).
+    /// </summary>
+    public async Task StepIntoAsync(CancellationToken ct = default)
+        => await StepAsync(stepIn: true, ct: ct);
+
+    /// <summary>
+    /// Steps out of the current method (runs until the current method returns).
+    /// </summary>
+    public async Task StepOutAsync(CancellationToken ct = default)
+    {
+        await DispatchAsync(() =>
+        {
+            if (_process is null) return;
+
+            ICorDebugThread thread = GetCurrentThread();
+
+            thread.CreateStepper(out ICorDebugStepper stepper);
+            stepper.SetInterceptMask(CorDebugIntercept.INTERCEPT_NONE);
+            stepper.SetUnmappedStopMask(CorDebugUnmappedStop.STOP_NONE);  // NOT STOP_UNMANAGED
+            stepper.StepOut();
+            _process.Continue(0);  // Must continue AFTER setting up step
+        }, ct);
+    }
+
+    private async Task StepAsync(bool stepIn, CancellationToken ct)
+    {
+        await DispatchAsync(() =>
+        {
+            if (_process is null) return;
+
+            ICorDebugThread thread = GetCurrentThread();
+
+            thread.CreateStepper(out ICorDebugStepper stepper);
+            stepper.SetInterceptMask(CorDebugIntercept.INTERCEPT_NONE);
+            stepper.SetUnmappedStopMask(CorDebugUnmappedStop.STOP_NONE);
+            stepper.Step(stepIn ? 1 : 0);  // 1=step-into, 0=step-over
+            _process.Continue(0);  // Must continue AFTER setting up step
+        }, ct);
+    }
+
+    /// <summary>
+    /// Gets the first thread from the process thread enumeration.
+    /// Must be called on the debug thread.
+    /// </summary>
+    private ICorDebugThread GetCurrentThread()
+    {
+        _process!.EnumerateThreads(out ICorDebugThreadEnum threadEnum);
+        var threads = new ICorDebugThread[1];
+        threadEnum.Next(1, threads, out uint fetched);
+        if (fetched == 0)
+            throw new InvalidOperationException("No threads found in process");
+        return threads[0];
     }
 
     // -----------------------------------------------------------------------

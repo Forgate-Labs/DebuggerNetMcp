@@ -481,6 +481,11 @@ internal partial interface ICorDebugProcessEnum
 [Guid("CC7BCB06-8A68-11D2-983C-0000F808342D")]
 internal partial interface ICorDebugThreadEnum
 {
+    void Skip(uint celt);
+    void Reset();
+    void Clone(out ICorDebugThreadEnum ppEnum);
+    void GetCount(out uint pcelt);
+    void Next(uint celt, [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 0)] ICorDebugThread[] objects, out uint pceltFetched);
 }
 
 [GeneratedComInterface]
