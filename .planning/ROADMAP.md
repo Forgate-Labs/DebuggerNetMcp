@@ -6,8 +6,8 @@ Complete rewrite from Python/netcoredbg to C#/ICorDebug. Phase 1 wipes the Pytho
 
 ## Phases
 
-- [x] **Phase 1: Foundation** - Delete Python, create C# solution + CMake native ptrace wrapper (completed 2026-02-22)
-- [x] **Phase 2: Interop + Engine Foundation** - COM interfaces, models, PdbReader, VariableReader (completed 2026-02-22)
+- [x] **Phase 1: Foundation** - Delete Python, create C# solution + CMake native ptrace wrapper (completed 2026-02-22)
+- [x] **Phase 2: Interop + Engine Foundation** - COM interfaces, models, PdbReader, VariableReader (completed 2026-02-22)
 - [ ] **Phase 3: Debug Engine** - DotnetDebugger.cs complete (launch, step, breakpoints, inspect, async channel)
 - [ ] **Phase 4: MCP Server** - 14 tools via ModelContextProtocol SDK + HelloDebug test app
 - [ ] **Phase 5: Tests + Docs** - xUnit integration tests + README rewrite
@@ -57,7 +57,14 @@ Plans:
   3. `StepOverAsync`, `StepIntoAsync`, `StepOutAsync` advance execution one step without hanging
   4. `GetLocalsAsync` returns local variables with correct names and values at a breakpoint
   5. ICorDebug callbacks run on a dedicated thread; Channel<DebugEvent> delivers events to async callers without deadlocks
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — ICorDebugClass.GetToken + IMetaDataImportMinimal: COM interop extensions for object field inspection (ENGINE-08)
+- [ ] 03-02-PLAN.md — ManagedCallbackHandler: [GeneratedComClass] sink implementing all 34 ICorDebug callback methods (ENGINE-08)
+- [ ] 03-03-PLAN.md — DotnetDebugger.cs core: Channel, dedicated thread, LaunchAsync, AttachAsync, DisconnectAsync (ENGINE-04, ENGINE-08)
+- [ ] 03-04-PLAN.md — DotnetDebugger.cs execution control: SetBreakpointAsync, RemoveBreakpointAsync, StepOver/Into/Out, Continue, Pause (ENGINE-05, ENGINE-06)
+- [ ] 03-05-PLAN.md — DotnetDebugger.cs inspection: GetStackTraceAsync, GetLocalsAsync, EvaluateAsync + VariableReader.ReadObject field enumeration (ENGINE-07)
 
 ### Phase 4: MCP Server
 **Goal**: Claude Code can invoke all 14 debug tools via stdio MCP and drive a full debug session against HelloDebug
@@ -85,6 +92,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-02-22 |
 | 2. Interop + Engine Foundation | 3/3 | Complete   | 2026-02-22 |
-| 3. Debug Engine | 0/TBD | Not started | - |
+| 3. Debug Engine | 0/5 | Not started | - |
 | 4. MCP Server | 0/TBD | Not started | - |
 | 5. Tests + Docs | 0/TBD | Not started | - |
