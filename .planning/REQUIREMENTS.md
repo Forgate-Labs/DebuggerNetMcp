@@ -20,8 +20,8 @@
 
 ### Interop (C#/COM)
 
-- [ ] **INTEROP-01**: DbgShimInterop.cs com descoberta dinâmica de libdbgshim.so via NativeLibrary.Load() — busca em DOTNET_ROOT e /usr/share/dotnet
-- [ ] **INTEROP-02**: ICorDebug.cs com interfaces COM completas e GUIDs corretos: ICorDebug, ICorDebugProcess, ICorDebugThread, ICorDebugFrame, ICorDebugILFrame, ICorDebugFunction, ICorDebugModule, ICorDebugValue, ICorDebugGenericValue, ICorDebugStringValue, ICorDebugObjectValue, ICorDebugArrayValue, ICorDebugBreakpoint, ICorDebugFunctionBreakpoint, ICorDebugStepper, ICorDebugManagedCallback, ICorDebugManagedCallback2
+- [x] **INTEROP-01**: DbgShimInterop.cs com descoberta dinâmica de libdbgshim.so via NativeLibrary.Load() — busca em DOTNET_ROOT e /usr/share/dotnet
+- [x] **INTEROP-02**: ICorDebug.cs com interfaces COM completas e GUIDs corretos: ICorDebug, ICorDebugProcess, ICorDebugThread, ICorDebugFrame, ICorDebugILFrame, ICorDebugFunction, ICorDebugModule, ICorDebugValue, ICorDebugGenericValue, ICorDebugStringValue, ICorDebugObjectValue, ICorDebugArrayValue, ICorDebugBreakpoint, ICorDebugFunctionBreakpoint, ICorDebugStepper, ICorDebugManagedCallback, ICorDebugManagedCallback2
 
 ### Engine (C#/debug)
 
@@ -81,8 +81,8 @@
 | INFRA-05 | Phase 1 | Complete |
 | NATIVE-01 | Phase 1 | Complete |
 | NATIVE-02 | Phase 1 | Complete |
-| INTEROP-01 | Phase 2 | Pending |
-| INTEROP-02 | Phase 2 | Pending |
+| INTEROP-01 | Phase 2 | Complete |
+| INTEROP-02 | Phase 2 | Complete |
 | ENGINE-01 | Phase 2 | Complete |
 | ENGINE-02 | Phase 2 | Pending |
 | ENGINE-03 | Phase 2 | Pending |
