@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 3 of 5 (Debug Engine)
-Plan: 2 of 5 in current phase
+Plan: 3 of 5 in current phase
 Status: Executing
-Last activity: 2026-02-22 — Completed 03-02 (ManagedCallbackHandler — 34-method COM callback sink)
+Last activity: 2026-02-22 — Completed 03-03 (DotnetDebugger.cs — core engine scaffold with channel, thread, launch, attach, disconnect)
 
 Progress: [███████░░░] ~60%
 
@@ -38,6 +38,7 @@ Progress: [███████░░░] ~60%
 | Phase 02-interop-engine-foundation P03 | 3min | 2 tasks | 2 files |
 | Phase 03-debug-engine P01 | 1min | 1 task | 2 files |
 | Phase 03-debug-engine P02 | 2min | 1 tasks | 1 files |
+| Phase 03-debug-engine P03 | 3min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Phase 03-debug-engine]: ICorDebugClass.GetModule added before GetToken to match cordebug.idl vtable order
 - [Phase 03-debug-engine]: IMetaDataImportMinimal uses [ComImport] not [GeneratedComInterface] — 62 vtable slots declared to preserve correct offsets for EnumFields (17) and GetFieldProps (54)
 - [Phase 03-debug-engine]: BreakpointTokenToId uses methodDef uint key (not Marshal.GetIUnknownForObject) — GetIUnknownForObject is Windows-only and incompatible with [GeneratedComInterface] source-generated proxies on Linux
+- [Phase 03-debug-engine]: StrategyBasedComWrappers.GetOrCreateObjectForComInstance instead of Marshal.GetObjectForIUnknown — cross-platform Linux fix, eliminates SYSLIB1099/CA1416
+- [Phase 03-debug-engine]: ResolveBreakpoint as regular private stub (not partial method) — DotnetDebugger is not declared partial class
 
 ### Pending Todos
 
@@ -77,10 +80,10 @@ None.
 
 - Phase 3 (Debug Engine) is the highest-risk phase: ICorDebug COM interop on Linux is underdocumented; dedicated thread + Channel pattern needs careful implementation
 - libdbgshim.so path: must be discovered dynamically; reference location is ~/.local/bin/ (CoreCLR 9.0.13)
-- DotnetDebugger (Plan 03-03) must use BreakpointTokenToId[methodDef] when registering function breakpoints via ManagedCallbackHandler
+- DotnetDebugger (Plan 03-04) must use BreakpointTokenToId[methodDef] when registering function breakpoints via ManagedCallbackHandler
 
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03-02-PLAN.md (ManagedCallbackHandler — 34-method COM callback sink)
+Stopped at: Completed 03-03-PLAN.md (DotnetDebugger.cs — core engine scaffold)
 Resume file: None
