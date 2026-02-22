@@ -29,8 +29,8 @@
 - [x] **ENGINE-02**: PdbReader.cs — lê Portable PDB embutido ou separado, mapeia (arquivo, linha) ↔ (methodToken, ilOffset) usando System.Reflection.Metadata
 - [x] **ENGINE-03**: VariableReader.cs — lê ICorDebugValue recursivamente com limite de profundidade 3 (primitivos, strings, arrays, objetos)
 - [x] **ENGINE-04**: DotnetDebugger.cs — LaunchAsync (dotnet build -c Debug + RegisterForRuntimeStartup) e AttachAsync
-- [ ] **ENGINE-05**: DotnetDebugger.cs — controle de execução: ContinueAsync, StepOverAsync, StepIntoAsync, StepOutAsync, PauseAsync
-- [ ] **ENGINE-06**: DotnetDebugger.cs — breakpoints: SetBreakpointAsync(file, line), RemoveBreakpointAsync(id)
+- [x] **ENGINE-05**: DotnetDebugger.cs — controle de execução: ContinueAsync, StepOverAsync, StepIntoAsync, StepOutAsync, PauseAsync
+- [x] **ENGINE-06**: DotnetDebugger.cs — breakpoints: SetBreakpointAsync(file, line), RemoveBreakpointAsync(id)
 - [ ] **ENGINE-07**: DotnetDebugger.cs — inspeção: GetStackTraceAsync, GetLocalsAsync, EvaluateAsync
 - [x] **ENGINE-08**: Thread dedicada para ICorDebug + Channel<DebugEvent> para comunicação async com as tools MCP
 
@@ -87,8 +87,8 @@
 | ENGINE-02 | Phase 2 | Complete |
 | ENGINE-03 | Phase 2 | Complete |
 | ENGINE-04 | Phase 3 | Complete |
-| ENGINE-05 | Phase 3 | Pending |
-| ENGINE-06 | Phase 3 | Pending |
+| ENGINE-05 | Phase 3 | Complete |
+| ENGINE-06 | Phase 3 | Complete |
 | ENGINE-07 | Phase 3 | Pending |
 | ENGINE-08 | Phase 3 | Complete |
 | MCP-01 | Phase 4 | Pending |

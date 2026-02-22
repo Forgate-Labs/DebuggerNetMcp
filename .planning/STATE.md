@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 3 of 5 (Debug Engine)
-Plan: 3 of 5 in current phase
+Plan: 4 of 5 in current phase
 Status: Executing
-Last activity: 2026-02-22 — Completed 03-03 (DotnetDebugger.cs — core engine scaffold with channel, thread, launch, attach, disconnect)
+Last activity: 2026-02-22 — Completed 03-04 (DotnetDebugger.cs — execution control + breakpoint management: SetBreakpointAsync, RemoveBreakpointAsync, ContinueAsync, PauseAsync, StepOverAsync, StepIntoAsync, StepOutAsync)
 
 Progress: [███████░░░] ~60%
 
@@ -39,6 +39,7 @@ Progress: [███████░░░] ~60%
 | Phase 03-debug-engine P01 | 1min | 1 task | 2 files |
 | Phase 03-debug-engine P02 | 2min | 1 tasks | 1 files |
 | Phase 03-debug-engine P03 | 3min | 1 tasks | 1 files |
+| Phase 03-debug-engine P04 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 03-debug-engine]: BreakpointTokenToId uses methodDef uint key (not Marshal.GetIUnknownForObject) — GetIUnknownForObject is Windows-only and incompatible with [GeneratedComInterface] source-generated proxies on Linux
 - [Phase 03-debug-engine]: StrategyBasedComWrappers.GetOrCreateObjectForComInstance instead of Marshal.GetObjectForIUnknown — cross-platform Linux fix, eliminates SYSLIB1099/CA1416
 - [Phase 03-debug-engine]: ResolveBreakpoint as regular private stub (not partial method) — DotnetDebugger is not declared partial class
+- [Phase 03-debug-engine]: PdbReader.FindLocation throws on miss (not null) — used try/catch instead of null check from plan template
+- [Phase 03-debug-engine]: BreakpointTokenToId keyed by uint methodDef (not Marshal.GetIUnknownForObject nint) — COM proxy identity instability on Linux
 
 ### Pending Todos
 
@@ -80,10 +83,10 @@ None.
 
 - Phase 3 (Debug Engine) is the highest-risk phase: ICorDebug COM interop on Linux is underdocumented; dedicated thread + Channel pattern needs careful implementation
 - libdbgshim.so path: must be discovered dynamically; reference location is ~/.local/bin/ (CoreCLR 9.0.13)
-- DotnetDebugger (Plan 03-04) must use BreakpointTokenToId[methodDef] when registering function breakpoints via ManagedCallbackHandler
+- Plan 03-05 is the final plan in Phase 3: GetStackFramesAsync, GetVariablesAsync, EvaluateExpressionAsync
 
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03-03-PLAN.md (DotnetDebugger.cs — core engine scaffold)
+Stopped at: Completed 03-04-PLAN.md (DotnetDebugger.cs — execution control + breakpoint management)
 Resume file: None
