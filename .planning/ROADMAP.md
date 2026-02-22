@@ -24,7 +24,12 @@ Complete rewrite from Python/netcoredbg to C#/ICorDebug. Phase 1 wipes the Pytho
   3. `cmake --build` produces libdotnetdbg.so containing dbg_attach, dbg_detach, dbg_interrupt, dbg_continue, dbg_wait symbols
   4. `build.sh` compiles native + managed in a single command
   5. `install.sh` registers the MCP server in Claude Code via `claude mcp add`
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Delete Python artifacts + scaffold .NET 10 solution (INFRA-01, INFRA-02, INFRA-03)
+- [ ] 01-02-PLAN.md — CMake native ptrace wrapper library (NATIVE-01, NATIVE-02)
+- [ ] 01-03-PLAN.md — build.sh + install.sh orchestration scripts (INFRA-04, INFRA-05)
 
 ### Phase 2: Interop + Engine Foundation
 **Goal**: COM interop layer and engine building blocks compile and can be loaded against a real libdbgshim.so
@@ -73,7 +78,7 @@ Complete rewrite from Python/netcoredbg to C#/ICorDebug. Phase 1 wipes the Pytho
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/3 | Not started | - |
 | 2. Interop + Engine Foundation | 0/TBD | Not started | - |
 | 3. Debug Engine | 0/TBD | Not started | - |
 | 4. MCP Server | 0/TBD | Not started | - |
