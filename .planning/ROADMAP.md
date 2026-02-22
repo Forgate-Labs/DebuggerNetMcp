@@ -7,7 +7,7 @@ Complete rewrite from Python/netcoredbg to C#/ICorDebug. Phase 1 wipes the Pytho
 ## Phases
 
 - [x] **Phase 1: Foundation** - Delete Python, create C# solution + CMake native ptrace wrapper (completed 2026-02-22)
-- [ ] **Phase 2: Interop + Engine Foundation** - COM interfaces, models, PdbReader, VariableReader
+- [x] **Phase 2: Interop + Engine Foundation** - COM interfaces, models, PdbReader, VariableReader (completed 2026-02-22)
 - [ ] **Phase 3: Debug Engine** - DotnetDebugger.cs complete (launch, step, breakpoints, inspect, async channel)
 - [ ] **Phase 4: MCP Server** - 14 tools via ModelContextProtocol SDK + HelloDebug test app
 - [ ] **Phase 5: Tests + Docs** - xUnit integration tests + README rewrite
@@ -84,7 +84,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-02-22 |
-| 2. Interop + Engine Foundation | 1/3 | In Progress|  |
+| 2. Interop + Engine Foundation | 3/3 | Complete   | 2026-02-22 |
 | 3. Debug Engine | 0/TBD | Not started | - |
 | 4. MCP Server | 0/TBD | Not started | - |
 | 5. Tests + Docs | 0/TBD | Not started | - |

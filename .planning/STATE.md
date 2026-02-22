@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 2 of 5 (Interop Engine Foundation)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: Executing
-Last activity: 2026-02-22 — Completed 02-02 (COM interop layer: DbgShimInterop + ICorDebug interfaces)
+Last activity: 2026-02-22 — Completed 02-03 (PdbReader + VariableReader — source-to-IL mapping and value inspection)
 
-Progress: [████░░░░░░] ~35%
+Progress: [█████░░░░░] ~50%
 
 ## Performance Metrics
 
@@ -28,13 +28,14 @@ Progress: [████░░░░░░] ~35%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 3 | ~18min | ~6min |
-| 02-interop-engine-foundation | 2 | ~5min | ~2.5min |
+| 02-interop-engine-foundation | 3 | ~8min | ~2.7min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (research), 01-02 (CMake native), 01-03 (build.sh + install.sh), 02-01 (debug model types), 02-02 (COM interop)
+- Last 5 plans: 01-02 (CMake native), 01-03 (build.sh + install.sh), 02-01 (debug model types), 02-02 (COM interop), 02-03 (PdbReader + VariableReader)
 - Trend: On track
 
 *Updated after each plan completion*
+| Phase 02-interop-engine-foundation P03 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,9 @@ Recent decisions affecting current work:
 - [02-01]: VariableInfo.Children typed as IReadOnlyList<VariableInfo> — callers cannot mutate the list
 - [Phase 02]: AllowUnsafeBlocks enabled in DebuggerNetMcp.Core.csproj — required by [GeneratedComInterface] source generator
 - [Phase 02]: All ICorDebug stub interfaces use real GUIDs from cordebug.idl (not placeholders) — ensures vtable correctness if native code queries these interfaces
+- [Phase 02-interop-engine-foundation]: CorElementType defined in VariableReader.cs (not ICorDebug.cs) — metadata concept, not COM interface concern
+- [Phase 02-interop-engine-foundation]: Object field enumeration deferred to Phase 3 — requires ICorDebugModule.GetMetaDataInterface with running process
+- [Phase 02-interop-engine-foundation]: FindAllLocations returns empty list (not throw) on FileNotFoundException — async methods map one source line to multiple SPs
 
 ### Pending Todos
 
@@ -72,5 +76,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 02-02-PLAN.md (COM interop layer: DbgShimInterop + ICorDebug interfaces)
+Stopped at: Completed 02-03-PLAN.md (PdbReader + VariableReader — source-to-IL mapping and value inspection)
 Resume file: None
