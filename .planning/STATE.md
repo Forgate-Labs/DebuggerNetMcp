@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 1 of 5 (Foundation)
-Plan: 2 of TBD in current phase
+Plan: 3 of TBD in current phase
 Status: Executing
-Last activity: 2026-02-22 — Completed 01-02 (CMake native ptrace wrapper)
+Last activity: 2026-02-22 — Completed 01-03 (build.sh + install.sh)
 
-Progress: [██░░░░░░░░] ~20%
+Progress: [███░░░░░░░] ~30%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: ~8 min/plan
-- Total execution time: ~16 min
+- Total plans completed: 3
+- Average duration: ~6 min/plan
+- Total execution time: ~18 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 2 | ~16min | ~8min |
+| 01-foundation | 3 | ~18min | ~6min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (research), 01-02 (CMake native)
+- Last 5 plans: 01-01 (research), 01-02 (CMake native), 01-03 (build.sh + install.sh)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -51,6 +51,8 @@ Recent decisions affecting current work:
 - [01-01]: Tests references Core only (not Mcp) — unit tests target library logic directly
 - [01-02]: LIBRARY_OUTPUT_DIRECTORY set to lib/ in CMakeLists.txt — avoids copy step in build.sh
 - [01-02]: #include <stddef.h> required for NULL in GCC 13 strict C mode — added to ptrace_wrapper.c
+- [Phase 01-foundation]: [01-03]: -- separator required before server name in claude mcp add (variadic -e flag)
+- [Phase 01-foundation]: [01-03]: CLAUDE_BIN env var overridable — avoids hardcoded claude binary path in install.sh
 
 ### Pending Todos
 
@@ -64,5 +66,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 01-01-PLAN.md (C# solution scaffold — Python removal + .NET 10 setup)
+Stopped at: Completed 01-03-PLAN.md (build.sh + install.sh)
 Resume file: None
