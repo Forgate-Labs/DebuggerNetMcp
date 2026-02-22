@@ -40,7 +40,12 @@ Plans:
   2. All ICorDebug COM interfaces compile with correct GUIDs and vtable layouts
   3. PdbReader maps a source line in HelloDebug to a valid (methodToken, ilOffset) pair
   4. VariableReader returns primitive, string, array, and object values from a live ICorDebugValue
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Models.cs: BreakpointInfo, StackFrameInfo, VariableInfo, EvalResult, DebugEvent hierarchy (ENGINE-01)
+- [ ] 02-02-PLAN.md — DbgShimInterop.cs + ICorDebug.cs: dynamic libdbgshim.so loading and all 17 COM interfaces (INTEROP-01, INTEROP-02)
+- [ ] 02-03-PLAN.md — PdbReader.cs + VariableReader.cs: source-line mapping and recursive ICorDebugValue inspection (ENGINE-02, ENGINE-03)
 
 ### Phase 3: Debug Engine
 **Goal**: DotnetDebugger.cs can launch a .NET app, hit breakpoints, step, inspect variables, and exit cleanly on kernel 6.12+
