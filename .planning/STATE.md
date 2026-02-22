@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 3 of 5 (Debug Engine)
-Plan: 1 of 5 in current phase
+Plan: 2 of 5 in current phase
 Status: Executing
-Last activity: 2026-02-22 — Completed 03-01 (COM interop extensions: ICorDebugClass.GetToken + IMetaDataImportMinimal)
+Last activity: 2026-02-22 — Completed 03-02 (ManagedCallbackHandler — 34-method COM callback sink)
 
-Progress: [██████░░░░] ~55%
+Progress: [███████░░░] ~60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: ~6 min/plan
-- Total execution time: ~18 min
+- Total plans completed: 4
+- Average duration: ~3 min/plan
+- Total execution time: ~20 min
 
 **By Phase:**
 
@@ -37,6 +37,7 @@ Progress: [██████░░░░] ~55%
 *Updated after each plan completion*
 | Phase 02-interop-engine-foundation P03 | 3min | 2 tasks | 2 files |
 | Phase 03-debug-engine P01 | 1min | 1 task | 2 files |
+| Phase 03-debug-engine P02 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,7 @@ Recent decisions affecting current work:
 - [Phase 02-interop-engine-foundation]: FindAllLocations returns empty list (not throw) on FileNotFoundException — async methods map one source line to multiple SPs
 - [Phase 03-debug-engine]: ICorDebugClass.GetModule added before GetToken to match cordebug.idl vtable order
 - [Phase 03-debug-engine]: IMetaDataImportMinimal uses [ComImport] not [GeneratedComInterface] — 62 vtable slots declared to preserve correct offsets for EnumFields (17) and GetFieldProps (54)
+- [Phase 03-debug-engine]: BreakpointTokenToId uses methodDef uint key (not Marshal.GetIUnknownForObject) — GetIUnknownForObject is Windows-only and incompatible with [GeneratedComInterface] source-generated proxies on Linux
 
 ### Pending Todos
 
@@ -75,9 +77,10 @@ None.
 
 - Phase 3 (Debug Engine) is the highest-risk phase: ICorDebug COM interop on Linux is underdocumented; dedicated thread + Channel pattern needs careful implementation
 - libdbgshim.so path: must be discovered dynamically; reference location is ~/.local/bin/ (CoreCLR 9.0.13)
+- DotnetDebugger (Plan 03-03) must use BreakpointTokenToId[methodDef] when registering function breakpoints via ManagedCallbackHandler
 
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03-01-PLAN.md (COM interop extensions: ICorDebugClass.GetToken + IMetaDataImportMinimal)
+Stopped at: Completed 03-02-PLAN.md (ManagedCallbackHandler — 34-method COM callback sink)
 Resume file: None
