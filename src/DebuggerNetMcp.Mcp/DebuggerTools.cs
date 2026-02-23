@@ -8,7 +8,7 @@ using DebuggerNetMcp.Core.Engine;
 public sealed class DebuggerTools(DotnetDebugger debugger)
 {
     private string _state = "idle";  // idle | running | stopped | exited
-    private const string ServerVersion = "0.7.5";
+    private const string ServerVersion = "0.7.6";
 
     // -----------------------------------------------------------------------
     // Private helpers
@@ -206,9 +206,21 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         RunAndWait(() => debugger.StepOutAsync(ct), ct);
 
     [McpServerTool(Name = "debug_pause"),
-     Description("Pause a running process and wait for the stopped event.")]
-    public Task<string> Pause(CancellationToken ct) =>
-        RunAndWait(() => debugger.PauseAsync(ct), ct);
+     Description("Pause a running process. ICorDebugController.Stop() is synchronous — no event is fired. Returns state=stopped immediately.")]
+    public async Task<string> Pause(CancellationToken ct)
+    {
+        using var cts = CreateToolCts(ct);
+        try
+        {
+            await debugger.PauseAsync(cts.Token);
+            _state = "stopped";
+            return JsonSerializer.Serialize(new { success = true, state = _state });
+        }
+        catch (Exception ex)
+        {
+            return JsonSerializer.Serialize(new { success = false, error = ex.Message });
+        }
+    }
 
     // -----------------------------------------------------------------------
     // Inspection tools
