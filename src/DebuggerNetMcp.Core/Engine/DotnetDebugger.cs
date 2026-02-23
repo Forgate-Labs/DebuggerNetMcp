@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using System.Threading.Channels;
@@ -813,6 +814,28 @@ public sealed class DotnetDebugger : IAsyncDisposable
                     }
                 }
 
+                // Append static fields from the declaring type of the current method
+                try
+                {
+                    uint declaringTypeToken = PdbReader.GetDeclaringTypeToken(dllPath, (int)methodToken);
+                    if (declaringTypeToken != 0)
+                    {
+                        var staticFieldMap = VariableReader.ReadStaticFieldsFromPE(dllPath, declaringTypeToken);
+                        if (staticFieldMap.Count > 0)
+                        {
+                            module.GetClassFromToken(declaringTypeToken, out ICorDebugClass staticCls);
+                            thread.GetActiveFrame(out ICorDebugFrame activeFrame);
+                            foreach (var (ft, sfn) in staticFieldMap)
+                            {
+                                var sv = VariableReader.ReadStaticField(sfn, staticCls, ft, activeFrame);
+                                if (!sv.Value.Contains("not available"))
+                                    result.Add(sv);
+                            }
+                        }
+                    }
+                }
+                catch { /* static scan is best-effort */ }
+
                 tcs.SetResult(result);
             }
             catch (Exception ex) { tcs.SetException(ex); }
@@ -860,6 +883,38 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 finally
                 {
                     Marshal.FreeHGlobal(namePtr);
+                }
+
+                // Try "TypeName.FieldName" static field lookup (highest priority)
+                if (expression.Contains('.'))
+                {
+                    int dotIdx = expression.IndexOf('.');
+                    string typePart = expression[..dotIdx];
+                    string fieldPart = expression[(dotIdx + 1)..];
+
+                    uint foundTypeToken = PdbReader.FindTypeByName(dllPath, typePart);
+                    if (foundTypeToken != 0)
+                    {
+                        var sfMap = VariableReader.ReadStaticFieldsFromPE(dllPath, foundTypeToken);
+                        var matchEntry = sfMap.FirstOrDefault(kv =>
+                            kv.Value.Equals(fieldPart, StringComparison.Ordinal));
+                        if (matchEntry.Key != 0)
+                        {
+                            try
+                            {
+                                module.GetClassFromToken(foundTypeToken, out ICorDebugClass sfCls);
+                                thread.GetActiveFrame(out ICorDebugFrame activeFrame2);
+                                var sfInfo = VariableReader.ReadStaticField(fieldPart, sfCls, matchEntry.Key, activeFrame2);
+                                tcs.SetResult(new EvalResult(true, sfInfo.Value, null));
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                tcs.SetResult(new EvalResult(false, string.Empty, $"Static field not available: {ex.Message}"));
+                                return;
+                            }
+                        }
+                    }
                 }
 
                 // Try state machine field lookup first (for async MoveNext methods)

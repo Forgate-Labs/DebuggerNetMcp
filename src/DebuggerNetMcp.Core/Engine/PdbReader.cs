@@ -198,6 +198,52 @@ internal static class PdbReader
         return result;
     }
 
+    /// <summary>
+    /// Returns the TypeDef token of the type that declares the given method.
+    /// Returns 0 if the method token is invalid or the type cannot be found.
+    /// </summary>
+    /// <param name="dllPath">Absolute path to the compiled .NET assembly (.dll).</param>
+    /// <param name="methodToken">The method's metadata token (e.g., 0x06000001).</param>
+    public static uint GetDeclaringTypeToken(string dllPath, int methodToken)
+    {
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            int rowNumber = methodToken & 0x00FFFFFF;
+            var methodHandle = MetadataTokens.MethodDefinitionHandle(rowNumber);
+            var methodDef = metadata.GetMethodDefinition(methodHandle);
+            var typeHandle = methodDef.GetDeclaringType();
+            if (typeHandle.IsNil) return 0;
+            return (uint)MetadataTokens.GetToken(typeHandle);
+        }
+        catch { return 0; }
+    }
+
+    /// <summary>
+    /// Searches all TypeDefinitions in the assembly for a type with the given simple name.
+    /// Returns the TypeDef token if found, or 0 if not found.
+    /// </summary>
+    /// <param name="dllPath">Absolute path to the compiled .NET assembly (.dll).</param>
+    /// <param name="typeName">Simple type name to search for (e.g., "MyClass").</param>
+    public static uint FindTypeByName(string dllPath, string typeName)
+    {
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            foreach (var typeHandle in metadata.TypeDefinitions)
+            {
+                var typeDef = metadata.GetTypeDefinition(typeHandle);
+                string name = metadata.GetString(typeDef.Name);
+                if (name == typeName)
+                    return (uint)MetadataTokens.GetToken(typeHandle);
+            }
+        }
+        catch { }
+        return 0;
+    }
+
     // ---------------------------------------------------------------------------
     // Private helpers
     // ---------------------------------------------------------------------------
