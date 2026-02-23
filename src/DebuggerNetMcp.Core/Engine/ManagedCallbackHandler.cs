@@ -382,9 +382,9 @@ internal sealed partial class ManagedCallbackHandler
                     typeName = "<unknown>";
 
                 // Read _message field — System.Exception stores message in private field _message.
-                // Walk inheritance chain via VariableReader.ReadInstanceFieldsFromPE (same pattern
-                // used successfully for DivideByZeroException in Phase 6 tests).
-                string? found = TryReadStringField(objVal, dllPath, typedefToken, "_message");
+                // Walk inheritance chain; pass module so GetClassFromToken picks the correct
+                // ICorDebugClass for each level (required by ICorDebugObjectValue.GetFieldValue).
+                string? found = TryReadStringField(objVal, module, dllPath, typedefToken, "_message");
                 if (found != null) message = found;
             }
 
@@ -398,7 +398,7 @@ internal sealed partial class ManagedCallbackHandler
     /// Returns null if the field is not found or cannot be read.
     /// </summary>
     private static string? TryReadStringField(
-        ICorDebugObjectValue objVal, string dllPath, uint typedefToken, string fieldName)
+        ICorDebugObjectValue objVal, ICorDebugModule module, string dllPath, uint typedefToken, string fieldName)
     {
         uint current = typedefToken;
         while (current != 0)
@@ -413,7 +413,9 @@ internal sealed partial class ManagedCallbackHandler
             {
                 try
                 {
-                    objVal.GetClass(out ICorDebugClass cls);
+                    // Use the class at this inheritance level, not the runtime (derived) class.
+                    // ICorDebugObjectValue.GetFieldValue requires the declaring class's ICorDebugClass.
+                    module.GetClassFromToken(current, out ICorDebugClass cls);
                     objVal.GetFieldValue(cls, targetRid, out ICorDebugValue fieldVal);
                     if (fieldVal is ICorDebugReferenceValue rv2)
                     {

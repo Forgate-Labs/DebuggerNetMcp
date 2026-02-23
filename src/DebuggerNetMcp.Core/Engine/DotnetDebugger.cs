@@ -669,6 +669,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
     {
         var frames = new List<StackFrameInfo>();
         thread.EnumerateChains(out ICorDebugChainEnum chainEnum);
+        if (chainEnum is null) return frames;
         var chains = new ICorDebugChain[1];
         int frameIndex = 0;
 
@@ -770,9 +771,13 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 var threads = GetAllThreads();
                 foreach (var thread in threads)
                 {
-                    thread.GetID(out uint tid);
-                    var frames = GetStackFramesForThread(thread);
-                    result.Add((tid, frames));
+                    try
+                    {
+                        thread.GetID(out uint tid);
+                        var frames = GetStackFramesForThread(thread);
+                        result.Add((tid, frames));
+                    }
+                    catch { /* skip threads that can't be inspected */ }
                 }
                 tcs.SetResult(result);
             }
@@ -899,7 +904,11 @@ public sealed class DotnetDebugger : IAsyncDisposable
                                     }
                                     catch { /* field not available at this IL offset */ }
                                 }
-                                readFromStateMachine = true;
+                                // For MoveNext (async state machine), fields ARE the variables — skip IL locals.
+                                // For closure methods (>b__), fields are captured variables but the method also
+                                // has its own IL locals (e.g. threadMessage shadowing the captured one) — read both.
+                                if (smMethodName == "MoveNext")
+                                    readFromStateMachine = true;
                             }
                         }
                     }
