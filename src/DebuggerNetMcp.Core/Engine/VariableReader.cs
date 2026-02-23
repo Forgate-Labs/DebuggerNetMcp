@@ -464,6 +464,44 @@ internal static class VariableReader
                 currentToken = GetBaseTypeToken(dllPath, currentToken);
             }
 
+            // GRAPH-02: Report computed properties (properties without a PE backing field).
+            // Skip compiler-generated types (display classes, state machines) — their "properties"
+            // are interface implementations, not user-visible computed properties.
+            try
+            {
+                string concreteTypeName = GetTypeName(dllPath, typedefToken);
+                bool isCompilerGenerated = concreteTypeName.StartsWith("<") || concreteTypeName.Contains(">d__") || concreteTypeName.Contains(">c__DisplayClass");
+                if (!isCompilerGenerated)
+                {
+                    // Collect all instance field names already added for backing-field check
+                    var instanceFieldNames = new HashSet<string>(
+                        ReadInstanceFieldsFromPE(dllPath, typedefToken).Values);
+
+                    using var propPeReader = new PEReader(File.OpenRead(dllPath));
+                    var propMetadata = propPeReader.GetMetadataReader();
+                    int rowNum = (int)(typedefToken & 0x00FFFFFF);
+                    var propTypeHandle = MetadataTokens.TypeDefinitionHandle(rowNum);
+                    var propTypeDef = propMetadata.GetTypeDefinition(propTypeHandle);
+
+                    foreach (var propHandle in propTypeDef.GetProperties())
+                    {
+                        var prop = propMetadata.GetPropertyDefinition(propHandle);
+                        string propName = propMetadata.GetString(prop.Name);
+
+                        // Skip explicitly-implemented interface properties (contain '.')
+                        if (propName.Contains('.')) continue;
+
+                        string expectedBacking = $"<{propName}>k__BackingField";
+                        if (!instanceFieldNames.Contains(expectedBacking))
+                        {
+                            // No backing field found — this is a computed property
+                            children.Add(new VariableInfo(propName, "<computed>", "<computed>", Array.Empty<VariableInfo>()));
+                        }
+                    }
+                }
+            }
+            catch { /* property scan is best-effort; PE read failures are non-fatal */ }
+
             string displayTypeName = GetTypeName(dllPath, typedefToken);
             return new VariableInfo(name, displayTypeName, $"{{fields: {children.Count}}}", children);
         }
