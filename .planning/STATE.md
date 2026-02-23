@@ -52,6 +52,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Static fields: ICorDebugClass.GetStaticFieldValue needs active thread — sequencing needed
 - [Phase 05]: Pass nullable ICorDebugFrame? to GetStaticFieldValue — allows non-thread-static fields without frame context
 - [Phase 05]: EvaluateAsync dot-notation lookup is highest priority — runs before state-machine and IL-local paths
+- [Phase 05-01]: IsEnumType checks BaseType TypeReference (Name=="Enum", Namespace=="System") — simpler than TypeAttributes
+- [Phase 05-01]: Nullable`1 detection works for CoreLib via GetTypeName — PE reads work for all modules
 
 ### Blockers/Concerns
 
@@ -62,5 +64,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 05-02-PLAN.md (static field reading — ICorDebugClass.GetStaticFieldValue + VariableReader + EvaluateAsync dot-notation)
+Stopped at: Completed 05-01-PLAN.md (enum display as TypeName.MemberName + Nullable<T> unwrapping in VariableReader)
 Resume file: None

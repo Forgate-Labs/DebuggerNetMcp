@@ -48,8 +48,8 @@
 ### Sistema de Tipos (TYPE)
 
 - [ ] **TYPE-01**: Debugger pode ler campos de structs (value types) como VariableInfo com tipo e valor corretos
-- [ ] **TYPE-02**: Debugger pode ler valores de enum como string "NomeDoEnum.Membro" (não apenas int)
-- [ ] **TYPE-03**: Debugger pode ler Nullable\<T\> — exibe valor quando HasValue=true, exibe "null" quando HasValue=false
+- [x] **TYPE-02**: Debugger pode ler valores de enum como string "NomeDoEnum.Membro" (não apenas int)
+- [x] **TYPE-03**: Debugger pode ler Nullable\<T\> — exibe valor quando HasValue=true, exibe "null" quando HasValue=false
 - [x] **TYPE-04**: Debugger pode ler static fields de uma classe via debug_variables ou debug_evaluate
 
 ### Closures e Iterators (CLSR)
@@ -133,8 +133,8 @@
 | MCP-01..02 | Phase 4 | Complete |
 | TEST-01 | Phase 4 | Complete |
 | TYPE-01 | Phase 5 | Pending |
-| TYPE-02 | Phase 5 | Pending |
-| TYPE-03 | Phase 5 | Pending |
+| TYPE-02 | Phase 5 | Complete |
+| TYPE-03 | Phase 5 | Complete |
 | TYPE-04 | Phase 5 | Complete |
 | CLSR-01 | Phase 6 | Pending |
 | CLSR-02 | Phase 6 | Pending |
