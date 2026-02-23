@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 5 of 9 (Type System)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-23 — v1.1 roadmap created, Phases 5-9 defined
+Plan: 2 of 3 complete
+Status: In Progress
+Last activity: 2026-02-23 — 05-02 static field reading complete
 
 Progress: [████░░░░░░] 44% (4/9 phases complete)
 
@@ -31,6 +31,7 @@ Progress: [████░░░░░░] 44% (4/9 phases complete)
 | 2. Interop + Engine Foundation | 3 | - | - |
 | 3. Debug Engine | 5 | - | - |
 | 4. MCP Server | 2 | - | - |
+| Phase 05 P02 | 179 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -49,6 +50,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Async hoisted vars: `<counter>5__2` → display as `counter`; `<>1__state` → skip
 - Reverse PDB lookup not yet implemented — stacktrace shows hex tokens
 - Static fields: ICorDebugClass.GetStaticFieldValue needs active thread — sequencing needed
+- [Phase 05]: Pass nullable ICorDebugFrame? to GetStaticFieldValue — allows non-thread-static fields without frame context
+- [Phase 05]: EvaluateAsync dot-notation lookup is highest priority — runs before state-machine and IL-local paths
 
 ### Blockers/Concerns
 
@@ -59,5 +62,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Roadmap created for v1.1 (Phases 5-9), ready to plan Phase 5
+Stopped at: Completed 05-02-PLAN.md (static field reading — ICorDebugClass.GetStaticFieldValue + VariableReader + EvaluateAsync dot-notation)
 Resume file: None
