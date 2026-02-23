@@ -1,6 +1,8 @@
 // HelloDebug — test application for DebuggerNetMcp
 // Each section is designed to exercise a different debugger feature.
 // Set breakpoints on the marked lines and inspect variables.
+// BP-20: Background thread breakpoint (multi-thread section)
+// BP-21: Unhandled exception (terminates session — must be last section)
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -133,7 +135,35 @@ var circObj = new CircularRef();
 circObj.Self = circObj;
 Console.WriteLine($"[19] Circular: Value={circObj.Value}");  // <── BP-19
 
-Console.WriteLine("[HelloDebug] Session complete");
+// ─── Section 20: Multi-thread ────────────────────────────────────────────────
+// BP-20: Set breakpoint on the Console.WriteLine inside the thread lambda below.
+// Expected: thread_id parameter on debug_variables returns 'threadMessage' from the background thread.
+//           debug_stacktrace without thread_id shows both main thread and background thread frames.
+{
+    string threadMessage = "hello from main";
+    var cts20 = new CancellationTokenSource();
+    var bgThread = new Thread(() =>
+    {
+        string threadMessage = "hello from background";  // intentionally shadows outer
+        Console.WriteLine($"[20] Background thread: {threadMessage}");  // <── BP-20
+        cts20.Token.WaitHandle.WaitOne();
+    });
+    bgThread.IsBackground = true;
+    bgThread.Start();
+    Thread.Sleep(50);   // give background thread time to reach BP-20
+    cts20.Cancel();
+    bgThread.Join();
+}
+
+// ─── Section 21: Unhandled exception ─────────────────────────────────────────
+// BP-21: No manual breakpoint needed — the throw below is unhandled.
+// Expected: ExceptionEvent delivered with exceptionType="System.InvalidOperationException"
+//           and message="Section 21 unhandled" — process does NOT exit silently.
+// WARNING: This section terminates the HelloDebug process via an unhandled exception.
+//          It MUST remain the last section. The ExceptionEvent is the session-ending event.
+throw new InvalidOperationException("Section 21 unhandled");
+
+// Console.WriteLine("[HelloDebug] Session complete"); // unreachable after section 21 throw
 
 // ─── Helper methods ──────────────────────────────────────────────────────────
 static int Fibonacci(int n)
