@@ -89,7 +89,7 @@ Plans:
 
 **Milestone Goal:** Expand the debug engine to cover all major .NET patterns — structs, enums, nullable, closures, iterators, static fields, circular references, unhandled exceptions, multi-threading, attach, and reverse PDB lookup — with xUnit integration tests and complete documentation.
 
-- [x] **Phase 5: Type System** - Structs, enums, Nullable<T>, and static fields readable via debug_variables/debug_evaluate (completed 2026-02-23)
+- [x] **Phase 5: Type System** - Structs, enums, Nullable<T>, and static fields readable via debug_variables/debug_evaluate (completed 2026-02-23)
 - [ ] **Phase 6: Closures, Iterators & Object Graph** - Lambda captures, yield return state machines, circular reference detection, computed properties
 - [ ] **Phase 7: Exceptions, Threading & Attach** - Unhandled exception events, first-chance notifications, multi-thread inspection, debug_attach by PID
 - [ ] **Phase 8: Stack Trace & dotnet test** - Reverse PDB lookup for readable stack frames, debug_launch for xUnit test processes
@@ -121,7 +121,12 @@ Plans:
   3. `debug_variables` on an object with a circular reference returns a "circular reference" marker instead of crashing with a stack overflow
   4. Properties without a backing field in the PE are reported as "<computed>" rather than missing from the output
   5. HelloDebug sections 13-19 covering struct, enum, nullable, closure, iterator, threading, and circular ref are in place and used by manual verification
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Closure detection (>b__ method) + iterator Current field in GetLocalsAsync (CLSR-01, CLSR-02)
+- [ ] 06-02-PLAN.md — Circular reference detection (HashSet<ulong> visited) + computed property reporting in VariableReader (GRAPH-01, GRAPH-02)
+- [ ] 06-03-PLAN.md — HelloDebug sections 17-19 (closure, iterator, circular ref) + live verification checkpoint (TEST-08)
 
 ### Phase 7: Exceptions, Threading & Attach
 **Goal**: Users receive exception events for unhandled errors, can inspect all threads, and can attach the debugger to a running .NET process by PID
@@ -166,8 +171,8 @@ Plans:
 | 2. Interop + Engine Foundation | v1.0 | 3/3 | Complete | 2026-02-22 |
 | 3. Debug Engine | v1.0 | 5/5 | Complete | 2026-02-22 |
 | 4. MCP Server | v1.0 | 2/2 | Complete | 2026-02-23 |
-| 5. Type System | 3/3 | Complete   | 2026-02-23 | - |
-| 6. Closures, Iterators & Object Graph | v1.1 | 0/TBD | Not started | - |
+| 5. Type System | v1.1 | 3/3 | Complete | 2026-02-23 |
+| 6. Closures, Iterators & Object Graph | v1.1 | 0/3 | Not started | - |
 | 7. Exceptions, Threading & Attach | v1.1 | 0/TBD | Not started | - |
 | 8. Stack Trace & dotnet test | v1.1 | 0/TBD | Not started | - |
 | 9. Tests & Documentation | v1.1 | 0/TBD | Not started | - |
