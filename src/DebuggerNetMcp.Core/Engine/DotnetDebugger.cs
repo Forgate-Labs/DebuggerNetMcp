@@ -32,6 +32,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
     private ICorDebug? _corDebug;
     private ICorDebugProcess? _process;
     private uint _launchedPid;
+    private uint _attachPid;
     private int _nextBreakpointId = 1;
 
     // Pending breakpoints: set before the module loads
@@ -212,6 +213,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
             _process = null;
             _corDebug = null;
             _launchedPid = 0;
+            _attachPid = 0;
             _loadedModules.Clear();
             _pendingBreakpoints.Clear();
             _activeBreakpoints.Clear();
@@ -285,12 +287,58 @@ public sealed class DotnetDebugger : IAsyncDisposable
 
     private void AttachToProcess(uint processId)
     {
-        RuntimeStartupCallback callback = OnRuntimeStarted;
-        DbgShimInterop.KeepAlive(callback);  // CRITICAL: same GC guard for attach
+        // RegisterForRuntimeStartup only works while the CLR is starting up.
+        // For already-running managed processes use EnumerateCLRs → CreateVersionStringFromModule
+        // → CreateDebuggingInterfaceFromVersionEx to obtain an ICorDebug for the live CLR,
+        // then call DebugActiveProcess (done in OnRuntimeStarted) to register the debugger.
+        _attachPid = processId;
 
-        int hr = DbgShimInterop.RegisterForRuntimeStartup(processId, callback, IntPtr.Zero, out _);
+        int hr = DbgShimInterop.EnumerateCLRs(processId,
+            out IntPtr pHandleArray, out IntPtr pStringArray, out uint count);
         if (hr != 0)
-            throw new InvalidOperationException($"RegisterForRuntimeStartup failed: HRESULT 0x{hr:X8}");
+            throw new InvalidOperationException($"EnumerateCLRs failed: HRESULT 0x{hr:X8}");
+
+        try
+        {
+            if (count == 0)
+                throw new InvalidOperationException(
+                    $"No CLR found in process {processId}. Is it a .NET process that has loaded CoreCLR?");
+
+            // Read the first module path (Unicode string pointer) from the string-pointer array.
+            IntPtr firstStringPtr = Marshal.ReadIntPtr(pStringArray, 0);
+            string modulePath = Marshal.PtrToStringUni(firstStringPtr) ?? string.Empty;
+
+            // Build the version string that CreateDebuggingInterfaceFromVersionEx expects.
+            IntPtr versionBuf = Marshal.AllocHGlobal(512);  // 256 wide chars
+            try
+            {
+                hr = DbgShimInterop.CreateVersionStringFromModule(
+                    processId, modulePath, versionBuf, 256, out _);
+                if (hr != 0)
+                    throw new InvalidOperationException(
+                        $"CreateVersionStringFromModule failed: HRESULT 0x{hr:X8}");
+
+                string versionString = Marshal.PtrToStringUni(versionBuf) ?? string.Empty;
+
+                // CorDebugVersion_4_0 = 4 (used by all .NET Core / .NET 5+ debuggers)
+                hr = DbgShimInterop.CreateDebuggingInterfaceFromVersionEx(
+                    4, versionString, out IntPtr pCordb);
+                if (hr != 0)
+                    throw new InvalidOperationException(
+                        $"CreateDebuggingInterfaceFromVersionEx failed: HRESULT 0x{hr:X8}");
+
+                // Hand off to the same OnRuntimeStarted path used by launch.
+                OnRuntimeStarted(pCordb, IntPtr.Zero, 0);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(versionBuf);
+            }
+        }
+        finally
+        {
+            DbgShimInterop.CloseCLREnumeration(pHandleArray, pStringArray, count);
+        }
     }
 
     private void OnRuntimeStarted(IntPtr pCordb, IntPtr parameter, int hr)
@@ -312,20 +360,29 @@ public sealed class DotnetDebugger : IAsyncDisposable
         _corDebug.Initialize();
         _corDebug.SetManagedHandler(_callbackHandler);
 
-        // Kick off the ICorDebug event loop.
-        // With RegisterForRuntimeStartup (bSuspendProcess=false), the process is already running.
-        // Call DebugActiveProcess to formally register the process with ICorDebug; this queues
-        // the initial CreateProcess / LoadModule / etc. callbacks and returns ICorDebugProcess.
-        // If DebugActiveProcess fails (process already registered), fall through — ICorDebug
-        // will deliver CreateProcess automatically on its internal thread.
+        // Kick off the ICorDebug event loop by registering the target process.
+        // DebugActiveProcess queues the initial CreateProcess / LoadModule / CreateThread callbacks.
         if (_launchedPid != 0)
         {
+            // Launch path: process was created suspended; Continue(0) lets it run past the
+            // initial CreateProcess event (StopAtCreateProcess may pause it again immediately).
             try
             {
                 _corDebug.DebugActiveProcess(_launchedPid, 0, out ICorDebugProcess proc);
                 proc.Continue(0);
             }
-            catch { /* ignore — ICorDebug may fire events automatically */ }
+            catch { /* ignore — ICorDebug may deliver events automatically */ }
+        }
+        else if (_attachPid != 0)
+        {
+            // Attach path: process is already running. DebugActiveProcess registers the debugger
+            // and delivers initial sync callbacks. Do NOT call Continue here — the CreateProcess
+            // callback (StopAtCreateProcess=false for attach) will call pProcess.Continue(0).
+            try
+            {
+                _corDebug.DebugActiveProcess(_attachPid, 0, out _);
+            }
+            catch { /* ignore */ }
         }
     }
 

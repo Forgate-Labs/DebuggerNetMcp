@@ -8,7 +8,7 @@ using DebuggerNetMcp.Core.Engine;
 public sealed class DebuggerTools(DotnetDebugger debugger)
 {
     private string _state = "idle";  // idle | running | stopped | exited
-    private const string ServerVersion = "0.7.4";
+    private const string ServerVersion = "0.7.5";
 
     // -----------------------------------------------------------------------
     // Private helpers

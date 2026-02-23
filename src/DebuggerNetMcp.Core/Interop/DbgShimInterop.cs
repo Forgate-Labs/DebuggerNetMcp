@@ -40,6 +40,30 @@ internal delegate int CreateProcessForLaunchDelegate(
 internal delegate int ResumeProcessDelegate(IntPtr resumeHandle);
 internal delegate int CloseResumeHandleDelegate(IntPtr resumeHandle);
 
+// Attach-to-running-process APIs (not needed for launch via RegisterForRuntimeStartup)
+internal delegate int EnumerateCLRsDelegate(
+    uint processId,
+    out IntPtr ppHandleArray,   // HANDLE** — array of CLR module handles
+    out IntPtr ppStringArray,   // LPWSTR** — array of CLR module path strings
+    out uint pdwArrayLength);
+
+internal delegate int CloseCLREnumerationDelegate(
+    IntPtr pHandleArray,
+    IntPtr pStringArray,
+    uint dwArrayLength);
+
+internal delegate int CreateVersionStringFromModuleDelegate(
+    uint pidDebuggee,
+    [MarshalAs(UnmanagedType.LPWStr)] string szModuleName,
+    IntPtr pBuffer,     // LPWSTR output buffer (caller-allocated)
+    uint cchBuffer,
+    out uint pdwLength);
+
+internal delegate int CreateDebuggingInterfaceFromVersionExDelegate(
+    int iDebuggerVersion,
+    [MarshalAs(UnmanagedType.LPWStr)] string szDebuggeeVersion,
+    out IntPtr ppCordb);
+
 internal static class DbgShimInterop
 {
     public static RegisterForRuntimeStartupDelegate RegisterForRuntimeStartup = null!;
@@ -47,6 +71,10 @@ internal static class DbgShimInterop
     public static CreateProcessForLaunchDelegate CreateProcessForLaunch = null!;
     public static ResumeProcessDelegate ResumeProcess = null!;
     public static CloseResumeHandleDelegate CloseResumeHandle = null!;
+    public static EnumerateCLRsDelegate EnumerateCLRs = null!;
+    public static CloseCLREnumerationDelegate CloseCLREnumeration = null!;
+    public static CreateVersionStringFromModuleDelegate CreateVersionStringFromModule = null!;
+    public static CreateDebuggingInterfaceFromVersionExDelegate CreateDebuggingInterfaceFromVersionEx = null!;
 
     private static nint _libHandle;
 
@@ -91,6 +119,18 @@ internal static class DbgShimInterop
 
         CloseResumeHandle = Marshal.GetDelegateForFunctionPointer<CloseResumeHandleDelegate>(
             NativeLibrary.GetExport(_libHandle, "CloseResumeHandle"));
+
+        EnumerateCLRs = Marshal.GetDelegateForFunctionPointer<EnumerateCLRsDelegate>(
+            NativeLibrary.GetExport(_libHandle, "EnumerateCLRs"));
+
+        CloseCLREnumeration = Marshal.GetDelegateForFunctionPointer<CloseCLREnumerationDelegate>(
+            NativeLibrary.GetExport(_libHandle, "CloseCLREnumeration"));
+
+        CreateVersionStringFromModule = Marshal.GetDelegateForFunctionPointer<CreateVersionStringFromModuleDelegate>(
+            NativeLibrary.GetExport(_libHandle, "CreateVersionStringFromModule"));
+
+        CreateDebuggingInterfaceFromVersionEx = Marshal.GetDelegateForFunctionPointer<CreateDebuggingInterfaceFromVersionExDelegate>(
+            NativeLibrary.GetExport(_libHandle, "CreateDebuggingInterfaceFromVersionEx"));
     }
 
     /// <summary>
