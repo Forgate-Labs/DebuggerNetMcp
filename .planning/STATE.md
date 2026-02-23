@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Milestone v1.1 — Phase 5: Type System
+**Current focus:** Milestone v1.1 — Phase 6: Closures, Iterators & Object Graph
 
 ## Current Position
 
-Phase: 5 of 9 (Type System)
-Plan: 2 of 3 complete
-Status: In Progress
-Last activity: 2026-02-23 — 05-02 static field reading complete
+Phase: 5 of 9 (Type System) — COMPLETE
+Plan: 3 of 3 complete
+Status: Phase Complete — ready for Phase 6
+Last activity: 2026-02-23 — 05-03 type system verification complete (all TYPE-01..04 verified)
 
-Progress: [████░░░░░░] 44% (4/9 phases complete)
+Progress: [█████░░░░░] 55% (5/9 phases complete)
 
 ## Performance Metrics
 
@@ -32,6 +32,7 @@ Progress: [████░░░░░░] 44% (4/9 phases complete)
 | 3. Debug Engine | 5 | - | - |
 | 4. MCP Server | 2 | - | - |
 | Phase 05 P02 | 179 | 2 tasks | 4 files |
+| Phase 05-type-system P03 | 10 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -52,8 +53,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Static fields: ICorDebugClass.GetStaticFieldValue needs active thread — sequencing needed
 - [Phase 05]: Pass nullable ICorDebugFrame? to GetStaticFieldValue — allows non-thread-static fields without frame context
 - [Phase 05]: EvaluateAsync dot-notation lookup is highest priority — runs before state-machine and IL-local paths
-- [Phase 05-01]: IsEnumType checks BaseType TypeReference (Name=="Enum", Namespace=="System") — simpler than TypeAttributes
+- [Phase 05-01]: IsEnumType checks BaseType — TypeReference path (cross-assembly) AND TypeDefinitionHandle path (BCL same-assembly); both required for full enum coverage
 - [Phase 05-01]: Nullable`1 detection works for CoreLib via GetTypeName — PE reads work for all modules
+- [Phase 05-03]: Sections 13-16 inserted after section 9 (file had only 1-9); IsEnumType BCL fix adds TypeDefinitionHandle path for DayOfWeek and other System enums
 
 ### Blockers/Concerns
 
@@ -64,5 +66,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 05-01-PLAN.md (enum display as TypeName.MemberName + Nullable<T> unwrapping in VariableReader)
+Stopped at: Completed 05-03-PLAN.md (HelloDebug type verification — all TYPE-01..04 confirmed; Phase 5 complete)
 Resume file: None
