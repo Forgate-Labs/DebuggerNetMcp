@@ -1,8 +1,24 @@
 # DebuggerNetMcp (Reescrita C#)
 
+## Current Milestone: v1.1 — Complete .NET Debug Coverage
+
+**Goal:** Expandir o debug engine para cobrir todos os padrões .NET — structs, enums, nullable, closures, iterators, static fields, referências circulares, exceções não-capturadas, multi-threading, attach, e reverse PDB lookup — com testes xUnit e documentação completa.
+
+**Target features:**
+- Sistema de tipos: struct, enum, Nullable\<T\>, static fields, computed properties
+- Closures e iterators: lambdas com variáveis capturadas, yield return state machines
+- Grafo de objetos: detecção de referências circulares, profundidade configurável
+- Exceções: não-capturadas (second-chance) + first-chance notifications
+- Multi-threading: enumerate threads, stack por thread, pause multithreaded
+- Process Attach: debug_attach em processo já em execução por PID
+- Stack Trace: reverse PDB lookup (IL → arquivo:linha legível)
+- dotnet test: debug dentro de xUnit test processes
+- Testes xUnit: integration tests cobrindo todos os cenários
+- Documentação: README reescrito com nova arquitetura
+
 ## What This Is
 
-MCP server para debug interativo de aplicações .NET Core no Linux, expondo 14 ferramentas de debug para o Claude Code via stdio. O projeto está sendo reescrito do zero: eliminando a dependência do netcoredbg (que crasha no kernel Linux 6.12+ com SIGSEGV) e reimplementando o debug engine diretamente em C#/.NET 10 usando ICorDebug e libdbgshim.so nativos.
+MCP server para debug interativo de aplicações .NET Core no Linux, expondo 14 ferramentas de debug para o Claude Code via stdio. O engine foi reescrito em C#/.NET 10 usando ICorDebug e libdbgshim.so diretamente — sem netcoredbg, sem Python — e funciona de forma confiável no kernel Linux 6.12+.
 
 ## Core Value
 
@@ -12,23 +28,28 @@ O debug deve funcionar de forma confiável no kernel Linux 6.12+ sem workarounds
 
 ### Validated
 
-- ✓ 14 debug tools expostas via MCP (launch, attach, breakpoints, step, variables, evaluate, stacktrace, pause, disconnect, status) — existente em Python
-- ✓ Comunicação MCP via stdio — existente em Python
-- ✓ Integração com libdbgshim.so para runtime startup callbacks — existente via netcoredbg
-- ✓ Workaround strace para kernel >= 6.12 — existente, mas frágil
+- ✓ MCP server C#/.NET 10 com 14 debug tools via stdio — v1.0 (Phase 1-4)
+- ✓ Debug engine ICorDebug direto (sem netcoredbg) — v1.0
+- ✓ Wrapper ptrace PTRACE_SEIZE, compatível kernel 6.12+ — v1.0
+- ✓ Leitura de variáveis: primitivos, strings, arrays, List, Dictionary, records, objetos, async state machine — v1.0
+- ✓ Breakpoints com offset exato via ICorDebugCode.CreateBreakpoint — v1.0
+- ✓ Step-over/into/out com StepRange via PDB — v1.0
+- ✓ Multiple BPs em mesmo método (chave composta methodToken+ilOffset) — v1.0
+- ✓ Event channel + estado resetado corretamente entre sessões — v1.0
 
 ### Active
 
-- [ ] MCP server reimplementado em C#/.NET 10 (sem Python)
-- [ ] Debug engine usando ICorDebug diretamente (sem netcoredbg)
-- [ ] Wrapper ptrace nativo em C usando PTRACE_SEIZE (compatível kernel 6.12+)
-- [ ] Descoberta dinâmica de libdbgshim.so via NativeLibrary.Load()
-- [ ] Leitura de Portable PDB para mapear linhas ↔ IL offsets (breakpoints e stacktrace)
-- [ ] Leitura recursiva de variáveis via ICorDebugValue (primitivos, strings, objetos, arrays)
-- [ ] Thread dedicada para ICorDebug com Channel<DebugEvent> para comunicação async
-- [ ] Build system (CMake para native + dotnet build para C#)
-- [ ] Projeto xUnit com testes de integração end-to-end
-- [ ] README atualizado com nova arquitetura
+- [ ] Sistema de tipos: struct, enum, Nullable\<T\>, static fields, computed properties sem backing field
+- [ ] Closures: variáveis capturadas em lambda (compiler-generated Display classes)
+- [ ] Iterators: yield return state machine — valor current e campos internos
+- [ ] Grafo de objetos: detecção de referências circulares com depth limit configurável
+- [ ] Exceções não-capturadas: second-chance events + first-chance notifications
+- [ ] Multi-threading: enumerate threads, stack por thread, pause multithreaded
+- [ ] Process Attach: debug_attach por PID em processo .NET já em execução
+- [ ] Reverse PDB lookup: IL offset → arquivo:linha para debug_stacktrace legível
+- [ ] dotnet test debug: debug dentro de xUnit test processes
+- [ ] xUnit integration tests cobrindo todos os cenários (basic + advanced)
+- [ ] README reescrito com arquitetura, pré-requisitos, exemplos de todas as tools
 
 ### Out of Scope
 
@@ -71,11 +92,15 @@ Claude Code → MCP Server (C#/stdio) → Debug Engine (C#) → dbgshim + ICorDe
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| ICorDebug direto (sem DAP) | Elimina camada intermediária netcoredbg, resolve race condition na raiz | — Pending |
-| PTRACE_SEIZE vs PTRACE_ATTACH | PTRACE_SEIZE é compatível com kernel 6.12+, não causa SIGSEGV | — Pending |
-| Channel<DebugEvent> para async | Desacopla thread do ICorDebug das tools async do MCP | — Pending |
-| Thread dedicada para ICorDebug | Requisito do COM — todos os acessos devem ser na mesma thread | — Pending |
-| C# + C (não Go ou Rust) | .NET 10 tem acesso nativo a COM interfaces ICorDebug, mesmo runtime alvo | — Pending |
+| ICorDebug direto (sem DAP) | Elimina camada intermediária netcoredbg, resolve race condition na raiz | ✓ Good |
+| PTRACE_SEIZE vs PTRACE_ATTACH | PTRACE_SEIZE é compatível com kernel 6.12+, não causa SIGSEGV | ✓ Good |
+| Channel<DebugEvent> para async | Desacopla thread do ICorDebug das tools async do MCP | ✓ Good |
+| Thread dedicada para ICorDebug | Requisito do COM — todos os acessos devem ser na mesma thread | ✓ Good |
+| C# + C (não Go ou Rust) | .NET 10 tem acesso nativo a COM interfaces ICorDebug, mesmo runtime alvo | ✓ Good |
+| ICorDebugCode.CreateBreakpoint com ilOffset exato | fn.CreateBreakpoint() usava offset 0 — JIT do .NET 10 ignorava; fix: GetILCode().CreateBreakpoint(offset) | ✓ Good |
+| BreakpointTokenToId chave composta (token,offset) | Multiple BPs em mesmo método (ex: async MoveNext) compartilhavam key → IDs errados | ✓ Good |
+| StepRange com PDB ao invés de Step() | Step() não localiza PDB no .NET 10 → single instruction; StepRange com range do PDB resolve | ✓ Good |
+| Event channel sempre recriado em LaunchAsync | Reader.Completion.IsCompleted falso quando canal tem itens buffered após TryComplete | ✓ Good |
 
 ---
-*Last updated: 2026-02-22 after initialization*
+*Last updated: 2026-02-23 after v1.1 milestone start*

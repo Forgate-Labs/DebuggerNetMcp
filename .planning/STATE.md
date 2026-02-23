@@ -2,89 +2,41 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-22)
+See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Phase 5 - Integration Tests
+**Current focus:** Milestone v1.1 — Complete .NET Debug Coverage
 
 ## Current Position
 
-Phase: 4 of 5 (MCP Server) — COMPLETE
-Plan: 2 of 2 in current phase — COMPLETE
-Status: In Progress
-Last activity: 2026-02-23 — Completed 04-02 (DebuggerTools.cs — 14 MCP tool methods; full solution builds 0 errors, 0 warnings)
-
-Progress: [█████████░] ~95%
-
-## Performance Metrics
-
-**Velocity:**
-- Total plans completed: 4
-- Average duration: ~3 min/plan
-- Total execution time: ~20 min
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 01-foundation | 3 | ~18min | ~6min |
-| 02-interop-engine-foundation | 3 | ~8min | ~2.7min |
-
-**Recent Trend:**
-- Last 5 plans: 01-02 (CMake native), 01-03 (build.sh + install.sh), 02-01 (debug model types), 02-02 (COM interop), 02-03 (PdbReader + VariableReader)
-- Trend: On track
-
-*Updated after each plan completion*
-| Phase 02-interop-engine-foundation P03 | 3min | 2 tasks | 2 files |
-| Phase 03-debug-engine P01 | 1min | 1 task | 2 files |
-| Phase 03-debug-engine P02 | 2min | 1 tasks | 1 files |
-| Phase 03-debug-engine P03 | 3min | 1 tasks | 1 files |
-| Phase 03-debug-engine P04 | 2min | 2 tasks | 2 files |
-| Phase 03 P05 | 2min | 2 tasks | 4 files |
-| Phase 04-mcp-server P01 | 1min | 2 tasks | 2 files |
-| Phase 04-mcp-server P02 | 2min | 1 tasks | 2 files |
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-23 — Milestone v1.1 started
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
 
-- [Pre-Phase 1]: ICorDebug direct (no DAP) — eliminates netcoredbg race condition at the root
-- [Pre-Phase 1]: PTRACE_SEIZE (not PTRACE_ATTACH) — kernel 6.12+ compatible
-- [Pre-Phase 1]: Channel<DebugEvent> for async — decouples ICorDebug thread from MCP tools
-- [Pre-Phase 1]: Dedicated thread for ICorDebug — COM requirement, all access on same thread
-- [01-01]: SDK pinned to 10.0.0 with rollForward latestMinor — allows patch updates, blocks major/minor
-- [01-01]: Core is classlib, Mcp is thin console entry point — clean separation of logic from wiring
-- [01-01]: Tests references Core only (not Mcp) — unit tests target library logic directly
-- [01-02]: LIBRARY_OUTPUT_DIRECTORY set to lib/ in CMakeLists.txt — avoids copy step in build.sh
-- [01-02]: #include <stddef.h> required for NULL in GCC 13 strict C mode — added to ptrace_wrapper.c
-- [Phase 01-foundation]: [01-03]: -- separator required before server name in claude mcp add (variadic -e flag)
-- [Phase 01-foundation]: [01-03]: CLAUDE_BIN env var overridable — avoids hardcoded claude binary path in install.sh
-- [02-01]: All model types are records (not classes) — immutability enforced by design, value equality built-in
-- [02-01]: DebugEvent uses abstract record + sealed subclasses — exhaustive switch expressions in Phase 3 without catch-all arms
-- [02-01]: VariableInfo.Children typed as IReadOnlyList<VariableInfo> — callers cannot mutate the list
-- [Phase 02]: AllowUnsafeBlocks enabled in DebuggerNetMcp.Core.csproj — required by [GeneratedComInterface] source generator
-- [Phase 02]: All ICorDebug stub interfaces use real GUIDs from cordebug.idl (not placeholders) — ensures vtable correctness if native code queries these interfaces
-- [Phase 02-interop-engine-foundation]: CorElementType defined in VariableReader.cs (not ICorDebug.cs) — metadata concept, not COM interface concern
-- [Phase 02-interop-engine-foundation]: Object field enumeration deferred to Phase 3 — requires ICorDebugModule.GetMetaDataInterface with running process
-- [Phase 02-interop-engine-foundation]: FindAllLocations returns empty list (not throw) on FileNotFoundException — async methods map one source line to multiple SPs
-- [Phase 03-debug-engine]: ICorDebugClass.GetModule added before GetToken to match cordebug.idl vtable order
-- [Phase 03-debug-engine]: IMetaDataImportMinimal uses [ComImport] not [GeneratedComInterface] — 62 vtable slots declared to preserve correct offsets for EnumFields (17) and GetFieldProps (54)
-- [Phase 03-debug-engine]: BreakpointTokenToId uses methodDef uint key (not Marshal.GetIUnknownForObject) — GetIUnknownForObject is Windows-only and incompatible with [GeneratedComInterface] source-generated proxies on Linux
-- [Phase 03-debug-engine]: StrategyBasedComWrappers.GetOrCreateObjectForComInstance instead of Marshal.GetObjectForIUnknown — cross-platform Linux fix, eliminates SYSLIB1099/CA1416
-- [Phase 03-debug-engine]: ResolveBreakpoint as regular private stub (not partial method) — DotnetDebugger is not declared partial class
-- [Phase 03-debug-engine]: PdbReader.FindLocation throws on miss (not null) — used try/catch instead of null check from plan template
-- [Phase 03-debug-engine]: BreakpointTokenToId keyed by uint methodDef (not Marshal.GetIUnknownForObject nint) — COM proxy identity instability on Linux
-- [Phase 03]: ICorDebugChain GeneratedComInterface stub requires full vtable through EnumerateFrames per cordebug.idl
-- [Phase 03]: Marshal.GetObjectForIUnknown retained for IMetaDataImportMinimal (CA1416 suppressed) — ComImport interfaces cannot use StrategyBasedComWrappers
-- [Phase 03]: GetStackTraceAsync source location deferred — PdbReader only has forward (source->IL) lookup; reverse IL->source lookup is future work
-- [Phase 04-mcp-server]: Logging routed to stderr (LogToStandardErrorThreshold=Trace) — stdout reserved exclusively for MCP wire protocol JSON-RPC messages
-- [Phase 04-mcp-server]: DebuggerTools forward-declared in WithTools<DebuggerTools>() — type satisfied by Plan 02, project intentionally unbuildable until then
-- [Phase 04-mcp-server]: Microsoft.Extensions.Hosting 10.0.3 added explicitly — was missing as direct dependency; only Abstractions was transitive from ModelContextProtocol
-- [Phase 04-mcp-server]: RunAndWait helper captures ct in lambda — composable async pattern for all 5 execution-control tools with a single WaitForEventAsync call
-- [Phase 04-mcp-server]: debug_status reads _state field directly without calling DotnetDebugger — zero-latency state query, no COM thread dispatch
+**v1.0 validated decisions:**
+- ICorDebug direto (sem DAP) ✓ — eliminates netcoredbg race condition at the root
+- PTRACE_SEIZE ✓ — compatible with kernel 6.12+
+- Channel<DebugEvent> ✓ — decouples ICorDebug thread from MCP async tools
+- Thread dedicada para ICorDebug ✓ — COM requirement enforced
+- ICorDebugCode.CreateBreakpoint(ilOffset) ✓ — exact offset fix for .NET 10 JIT
+- BreakpointTokenToId chave (token,offset) ✓ — multiple BPs in same method
+- StepRange com PDB ✓ — Step() one-instruction limitation in .NET 10
+- Event channel sempre recriado ✓ — buffered items cause false IsCompleted
+
+**v1.1 architectural notes (from current session):**
+- IMetaDataImport NÃO funciona no Linux (COM Interop not supported) — usar PEReader
+- Variáveis async hoistadas: nome `<counter>5__2` → exibir `counter`; `<>1__state` → skip
+- MoveNext `this` argument = state machine instance (ICorDebugReferenceValue → Dereference() → ICorDebugObjectValue)
+- GetFieldValue para reference types retorna ICorDebugReferenceValue → Dereference() antes de cast
+- GetModulePathInternal via Marshal.AllocHGlobal + PtrToStringUni (GetName via unmanaged buffer)
+- frame.CreateStepper mais preciso que thread.CreateStepper para async contexts
 
 ### Pending Todos
 
@@ -92,11 +44,13 @@ None.
 
 ### Blockers/Concerns
 
-- Phase 3 complete. GetStackTraceAsync returns method tokens (0x0600xxxx) not human-readable names — reverse PDB (IL→source) lookup deferred to Phase 4/5.
-- libdbgshim.so path: must be discovered dynamically; reference location is ~/.local/bin/ (CoreCLR 9.0.13)
+- Reverse PDB lookup (IL→source) não implementado ainda — debug_stacktrace retorna tokens (0x0600xxxx)
+- Static fields: ICorDebugClass.GetStaticFieldValue requires active thread — sequencing needed
+- Computed properties: sem backing field no PE — pode requerer IL eval ou reflection
+- Circular references: VariableReader.ReadObject não tem depth tracking — pode stack overflow em grafos circulares
 
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 04-02-PLAN.md (DebuggerTools.cs — 14 MCP tool methods; full solution builds 0 errors)
+Stopped at: Completed v1.0 manual testing (all 12 HelloDebug sections passing), started v1.1 milestone
 Resume file: None
