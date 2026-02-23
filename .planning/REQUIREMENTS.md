@@ -79,8 +79,8 @@
 
 ### Stack Trace (STKT)
 
-- [ ] **STKT-01**: PdbReader implementa reverse lookup — dado (methodToken, ilOffset) retorna (sourceFile, line) usando sequence points do PDB
-- [ ] **STKT-02**: debug_stacktrace retorna frames com sourceFile e line legíveis (ex: "Program.cs:57") em vez de tokens hexadecimais
+- [x] **STKT-01**: PdbReader implementa reverse lookup — dado (methodToken, ilOffset) retorna (sourceFile, line) usando sequence points do PDB
+- [x] **STKT-02**: debug_stacktrace retorna frames com sourceFile e line legíveis (ex: "Program.cs:57") em vez de tokens hexadecimais
 
 ### dotnet test (DTEST)
 
@@ -147,8 +147,8 @@
 | THRD-02 | Phase 7 | Complete |
 | THRD-03 | Phase 7 | Complete |
 | ATCH-01 | Phase 7 | Complete |
-| STKT-01 | Phase 8 | Pending |
-| STKT-02 | Phase 8 | Pending |
+| STKT-01 | Phase 8 | Complete |
+| STKT-02 | Phase 8 | Complete |
 | DTEST-01 | Phase 8 | Pending |
 | DTEST-02 | Phase 8 | Pending |
 | TEST-02 | Phase 9 | Pending |

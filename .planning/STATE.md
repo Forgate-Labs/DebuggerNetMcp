@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Milestone v1.1 — Phase 7: Exceptions, Threading & Attach
+**Current focus:** Milestone v1.1 — Phase 8: Stack Trace & dotnet test
 
 ## Current Position
 
-Phase: 7 of 9 (Exceptions, Threading & Attach) — IN PROGRESS
-Plan: 3 of 3 (checkpoint — awaiting human verification)
-Status: Phase 7 plan 03 tasks complete — AttachAsync TCS confirmation + HelloDebug sections 20-21; checkpoint awaits human sign-off
-Last activity: 2026-02-23 — 07-03 attach confirmation: attachConfirmedTcs pattern + sections 20 (multi-thread) + 21 (unhandled exception)
+Phase: 8 of 9 (Stack Trace & dotnet test) — IN PROGRESS
+Plan: 1 of 2 complete
+Status: Phase 8 plan 01 complete — PdbReader.ReverseLookup + GetStackFramesForThread source locations; ServerVersion 0.8.0
+Last activity: 2026-02-23 — 08-01 stack trace source locations: ReverseLookup(nearest SP) + method name resolution
 
-Progress: [██████░░░░] 67% (6/9 phases complete; phase 7 in progress)
+Progress: [███████░░░] 78% (7/9 phases complete; phase 8 plan 1/2 done)
 
 ## Performance Metrics
 
@@ -37,6 +37,7 @@ Progress: [██████░░░░] 67% (6/9 phases complete; phase 7 in 
 | Phase 06-closures-iterators-object-graph P02 | 4 | 2 tasks | 1 file |
 | Phase 07-exceptions-threading-attach P02 | 3 | 2 tasks | 2 files |
 | Phase 07-exceptions-threading-attach P03 | 8 | 2 tasks | 3 files |
+| Phase 08-stack-trace-and-dotnet-test P01 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 07-exceptions-threading-attach]: thread_id=0 sentinel enables all-threads path in debug_stacktrace, backward-compatible default
 - [Phase 07-exceptions-threading-attach]: GetStackFramesForThread extracted as shared helper reused by GetStackTraceAsync and GetAllThreadStackTracesAsync
 - [Phase 07-exceptions-threading-attach]: attachConfirmedTcs: set OnProcessCreated before dispatch to avoid race; handler sets _process + resolves TCS with confirmed PID
+- [Phase 08-stack-trace-and-dotnet-test]: PdbReader.ReverseLookup: nearest-sequence-point semantics (last SP with Offset <= ilOffset); break optimization valid per Portable PDB spec ascending-offset guarantee
+- [Phase 08-stack-trace-and-dotnet-test]: GetStackFramesForThread PDB resolution: always try/catch — framework frames (CoreLib) have no PDB and must not crash; display uses Path.GetFileName() for compact output
 
 ### Blockers/Concerns
 
