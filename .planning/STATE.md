@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Milestone v1.1 — Phase 6: Closures, Iterators & Object Graph
+**Current focus:** Milestone v1.1 — Phase 7: Exceptions, Threading & Attach
 
 ## Current Position
 
-Phase: 6 of 9 (Closures, Iterators & Object Graph) — COMPLETE
-Plan: 3 of 3 complete
-Status: Phase 6 complete — ready for Phase 7
-Last activity: 2026-02-23 — 06-03 HelloDebug sections 17-19 + live verification + multi-session bug fixes
+Phase: 7 of 9 (Exceptions, Threading & Attach) — IN PROGRESS
+Plan: 1 of 3 complete
+Status: Phase 7 plan 01 complete — exception events carry real type/message; first-chance opt-in added
+Last activity: 2026-02-23 — 07-01 TryReadExceptionInfo + double-reporting guard + firstChanceExceptions param
 
-Progress: [██████░░░░] 67% (6/9 phases complete)
+Progress: [██████░░░░] 67% (6/9 phases complete; phase 7 in progress)
 
 ## Performance Metrics
 
@@ -64,6 +64,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 06-02]: Computed property backing-field check uses only concrete typedefToken (not inheritance chain) — backing fields always declared on same type as property
 - [Phase 06-03]: SuppressExitProcess flag on old ManagedCallbackHandler prevents old session's ExitProcess from closing new session's event channel
 - [Phase 06-03]: LaunchAsync calls DisconnectAsync at startup to clear stale module registry from prior session — ensures pending breakpoints are registered fresh
+- [Phase 07-01]: v1 Exception callback owns unhandled stop + sets _exceptionStopPending; v2 defers to avoid double-reporting
+- [Phase 07-01]: TryReadExceptionInfo reads real exception type/message via GetCurrentException + PE metadata + _message field walk
+- [Phase 07-01]: GetTypeName, GetModulePath, ReadInstanceFieldsFromPE, GetBaseTypeToken changed to internal static in VariableReader (reused from ManagedCallbackHandler)
+- [Phase 07-01]: First-chance exceptions opt-in via debug_launch firstChanceExceptions=true; default false to avoid noise
 
 ### Blockers/Concerns
 
@@ -74,5 +78,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 06-03-PLAN.md (HelloDebug sections 17-19 + live verification; Phase 6 fully complete)
+Stopped at: Completed 07-01-PLAN.md (TryReadExceptionInfo + double-reporting guard + firstChanceExceptions param)
 Resume file: None

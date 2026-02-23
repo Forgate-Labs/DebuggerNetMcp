@@ -64,8 +64,8 @@
 
 ### Exceções (EXCP)
 
-- [ ] **EXCP-01**: Debugger notifica exceção não-capturada (second-chance) via ExceptionEvent com tipo e mensagem — processo não termina silenciosamente
-- [ ] **EXCP-02**: Debugger suporta first-chance exception notifications (opcional — configurável via debug_launch)
+- [x] **EXCP-01**: Debugger notifica exceção não-capturada (second-chance) via ExceptionEvent com tipo e mensagem — processo não termina silenciosamente
+- [x] **EXCP-02**: Debugger suporta first-chance exception notifications (opcional — configurável via debug_launch)
 
 ### Multi-threading (THRD)
 
@@ -141,8 +141,8 @@
 | GRAPH-01 | Phase 6 | Complete |
 | GRAPH-02 | Phase 6 | Complete |
 | TEST-08 | Phase 6 | Complete |
-| EXCP-01 | Phase 7 | Pending |
-| EXCP-02 | Phase 7 | Pending |
+| EXCP-01 | Phase 7 | Complete |
+| EXCP-02 | Phase 7 | Complete |
 | THRD-01 | Phase 7 | Pending |
 | THRD-02 | Phase 7 | Pending |
 | THRD-03 | Phase 7 | Pending |
