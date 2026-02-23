@@ -441,6 +441,7 @@ internal partial interface ICorDebugClass
 {
     void GetModule(out ICorDebugModule pModule);
     void GetToken(out uint pTypeDef);
+    void GetStaticFieldValue(uint fieldDef, ICorDebugFrame? pFrame, out ICorDebugValue ppValue);
 }
 
 [GeneratedComInterface]

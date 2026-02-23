@@ -521,6 +521,58 @@ internal static class VariableReader
         return result;
     }
 
+    // ---------------------------------------------------------------------------
+    // Static field readers
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads all static field tokens and names from PE metadata for a given TypeDef.
+    /// Skips "value__" (enum underlying value) and compiler-generated names starting with "&lt;&gt;".
+    /// Uses System.Reflection.Metadata — no COM interop required.
+    /// </summary>
+    internal static Dictionary<uint, string> ReadStaticFieldsFromPE(string dllPath, uint typedefToken)
+    {
+        var result = new Dictionary<uint, string>();
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            int rowNumber = (int)(typedefToken & 0x00FFFFFF);
+            var typeHandle = MetadataTokens.TypeDefinitionHandle(rowNumber);
+            var typeDef = metadata.GetTypeDefinition(typeHandle);
+            foreach (var fieldHandle in typeDef.GetFields())
+            {
+                var field = metadata.GetFieldDefinition(fieldHandle);
+                // Only static fields
+                if ((field.Attributes & System.Reflection.FieldAttributes.Static) == 0) continue;
+                string fieldName = metadata.GetString(field.Name);
+                // Skip enum underlying value and compiler-generated infrastructure
+                if (fieldName == "value__" || fieldName.StartsWith("<>")) continue;
+                uint fieldToken = (uint)MetadataTokens.GetToken(fieldHandle);
+                result[fieldToken] = fieldName;
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    /// <summary>
+    /// Reads a single static field value via ICorDebugClass.GetStaticFieldValue.
+    /// Returns a VariableInfo with "&lt;not available&gt;" if the field cannot be read.
+    /// </summary>
+    internal static VariableInfo ReadStaticField(string name, ICorDebugClass cls, uint fieldToken, ICorDebugFrame? frame)
+    {
+        try
+        {
+            cls.GetStaticFieldValue(fieldToken, frame, out ICorDebugValue val);
+            return ReadValue(name, val);
+        }
+        catch
+        {
+            return new VariableInfo(name, "static", "<not available>", Array.Empty<VariableInfo>());
+        }
+    }
+
     /// <summary>Returns the simple type name (e.g. "List`1", "Person") from PE metadata.</summary>
     private static string GetTypeName(string dllPath, uint typedefToken)
     {
