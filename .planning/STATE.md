@@ -40,6 +40,7 @@ Progress: [██████████] 100% (9/9 phases complete; all plans 
 | Phase 08-stack-trace-and-dotnet-test P01 | 2 | 2 tasks | 3 files |
 | Phase 08-stack-trace-and-dotnet-test P02 | 2 | 2 tasks | 3 files |
 | Phase 09-tests-documentation P01 | 2 | 2 tasks | 5 files |
+| Phase 09-tests-documentation P02 | 7 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 09-tests-documentation-01]: InternalsVisibleTo added to Core csproj via AssemblyAttribute — PdbReader (internal static) accessible from test assembly without changing visibility
 - [Phase 09-tests-documentation-01]: PdbReaderTests path: 4 levels up from AppContext.BaseDirectory to reach HelloDebug/bin/Debug/net10.0/
 - [Phase 09-tests-documentation]: README does not mention netcoredbg/Python/DAP — fully eliminated in Phase 1-4; ASCII diagram shows direct ICorDebug architecture
+- [Phase 09-tests-documentation-02]: DrainToExit must handle ExceptionEvent with ContinueAsync — HelloDebug Section 21 stops process with unhandled exception before ExitedEvent
+- [Phase 09-tests-documentation-02]: Attach test uses retry loop (10 x 30ms) instead of fixed delay — HelloDebug exits in ~215ms, fixed 800ms delay guarantees process is already dead
 
 ### Blockers/Concerns
 
@@ -94,5 +97,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 09-03-PLAN.md — README.md complete rewrite; all phase 9 plans done
+Stopped at: Completed 09-02-PLAN.md — 14 integration tests passing; DebuggerIntegrationTests + DebuggerAdvancedTests
 Resume file: None
