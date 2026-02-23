@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -16,10 +16,14 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="DebuggerNetMcp.Core.Engine" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DebuggerNetMcp.Core\DebuggerNetMcp.Core.csproj" />
+    <ProjectReference Include="..\..\tests\HelloDebug\HelloDebug.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false" />
   </ItemGroup>
 
 </Project>
