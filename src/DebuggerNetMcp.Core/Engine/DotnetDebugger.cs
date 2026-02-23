@@ -92,18 +92,23 @@ public sealed class DotnetDebugger : IAsyncDisposable
     public async Task LaunchAsync(string projectPath, string appDllPath,
         CancellationToken ct = default)
     {
-        // Reset the event channel if a previous session completed it (ExitProcess calls TryComplete).
-        // Must happen before Step 1 so module-load and other events from the new session are captured.
-        if (_eventChannel.Reader.Completion.IsCompleted)
+        // Clean up any previous session (terminates the old process and clears module/breakpoint state).
+        // Set SuppressExitProcess so the old process's ExitProcess callback does not TryComplete
+        // the new session's event channel (the callback fires asynchronously after Terminate).
+        if (_process is not null)
         {
-            _eventChannel = Channel.CreateUnbounded<DebugEvent>(new UnboundedChannelOptions
-            {
-                SingleWriter = true,
-                SingleReader = false,
-                AllowSynchronousContinuations = false
-            });
-            _callbackHandler.UpdateEventWriter(_eventChannel.Writer);
+            _callbackHandler.SuppressExitProcess = true;
+            await DisconnectAsync(ct);
         }
+
+        // Always recreate the event channel for each new session.
+        _eventChannel = Channel.CreateUnbounded<DebugEvent>(new UnboundedChannelOptions
+        {
+            SingleWriter = true,
+            SingleReader = false,
+            AllowSynchronousContinuations = false
+        });
+        _callbackHandler.UpdateEventWriter(_eventChannel.Writer);
 
         // Step 1: dotnet build -c Debug
         await BuildProjectAsync(projectPath, ct);

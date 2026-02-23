@@ -436,7 +436,11 @@ internal static class VariableReader
                         // - "<Name>k__BackingField" / "<field>N__M" → display extracted name
                         // - other names → display as-is
                         string displayName;
-                        if (fieldName.StartsWith("<>"))
+                        if (fieldName == "<>2__current")
+                            displayName = "Current";  // iterator last-yielded value
+                        else if (fieldName == "<>1__state")
+                            displayName = "_state";   // iterator / state machine position
+                        else if (fieldName.StartsWith("<>"))
                             continue;
                         else if (fieldName.StartsWith("<"))
                         {

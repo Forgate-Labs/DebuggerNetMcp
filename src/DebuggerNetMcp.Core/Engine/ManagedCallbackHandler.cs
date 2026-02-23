@@ -61,6 +61,12 @@ internal sealed partial class ManagedCallbackHandler
         _events = events;
     }
 
+    /// <summary>
+    /// When true, ExitProcess suppresses TryComplete on the event channel.
+    /// Set before forcibly terminating a previous session so the new session's channel is not closed.
+    /// </summary>
+    internal bool SuppressExitProcess { get; set; }
+
     // -----------------------------------------------------------------------
     // ICorDebugManagedCallback — 26 methods
     // All MUST end with pAppDomain.Continue(0) (or pProcess.Continue(0))
@@ -154,7 +160,14 @@ internal sealed partial class ManagedCallbackHandler
 
     public void ExitProcess(ICorDebugProcess pProcess)
     {
-        // DO NOT call Continue after ExitProcess — process is gone
+        // DO NOT call Continue after ExitProcess — process is gone.
+        // If SuppressExitProcess is set, this callback is from a process terminated by DisconnectAsync
+        // during a new launch; suppress TryComplete so the new session's channel is not closed.
+        if (SuppressExitProcess)
+        {
+            SuppressExitProcess = false;
+            return;
+        }
         _events.TryWrite(new ExitedEvent(0));
         _events.TryComplete();
     }
