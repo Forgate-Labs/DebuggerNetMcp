@@ -47,6 +47,14 @@ internal sealed partial class ManagedCallbackHandler
     // avoiding ICorDebugThreadEnum.Next() which has LPArray marshaling issues.
     internal uint CurrentStoppedThreadId { get; private set; }
 
+    // Controls whether first-chance exceptions produce a stopping ExceptionEvent.
+    // Set by DotnetDebugger.LaunchAsync before launching. Default false (continue silently).
+    internal bool NotifyFirstChanceExceptions { get; set; }
+
+    // Set by v1 Exception callback when it writes a stopping unhandled ExceptionEvent.
+    // Prevents the v2 Exception callback from writing a duplicate stopping event.
+    private bool _exceptionStopPending;
+
     public ManagedCallbackHandler(ChannelWriter<DebugEvent> events)
     {
         _events = events;
@@ -116,14 +124,29 @@ internal sealed partial class ManagedCallbackHandler
 
     public void Exception(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread, int bUnhandled)
     {
-        // v1 exception callback. Only stop for unhandled exceptions (bUnhandled != 0).
-        // First-chance exceptions (bUnhandled == 0) are informational — continue silently.
-        // The v2 Exception callback (ICorDebugManagedCallback2) provides richer info and
-        // handles the same cases, so we keep v1 minimal to avoid double-reporting.
         if (bUnhandled != 0)
         {
-            // STOPPING event for unhandled — do NOT call Continue
-            try { pThread.GetID(out uint tid); _events.TryWrite(new ExceptionEvent("<unhandled>", "Unhandled exception", (int)tid, true)); }
+            // Second-chance (unhandled) — STOPPING event. Do NOT call Continue.
+            try
+            {
+                pThread.GetID(out uint tid);
+                CurrentStoppedThreadId = tid;
+                var (exType, exMsg) = TryReadExceptionInfo(pThread);
+                _exceptionStopPending = true;
+                _events.TryWrite(new ExceptionEvent(exType, exMsg, (int)tid, true));
+            }
+            catch { pAppDomain.Continue(0); }
+        }
+        else if (NotifyFirstChanceExceptions)
+        {
+            // First-chance with notifications enabled — STOPPING event. Do NOT call Continue.
+            try
+            {
+                pThread.GetID(out uint tid);
+                CurrentStoppedThreadId = tid;
+                var (exType, exMsg) = TryReadExceptionInfo(pThread);
+                _events.TryWrite(new ExceptionEvent(exType, exMsg, (int)tid, false));
+            }
             catch { pAppDomain.Continue(0); }
         }
         else
@@ -277,13 +300,30 @@ internal sealed partial class ManagedCallbackHandler
     {
         if (dwEventType == CorDebugExceptionCallbackType.DEBUG_EXCEPTION_UNHANDLED)
         {
-            // STOPPING event — do NOT call Continue
-            try { pThread.GetID(out uint tid); _events.TryWrite(new ExceptionEvent("<unhandled>", "Unhandled exception", (int)tid, true)); }
-            catch { pAppDomain.Continue(0); }
+            if (_exceptionStopPending)
+            {
+                // v1 callback already handled this unhandled exception and wrote the stopping event.
+                // Continue silently to avoid double-stopping and double-writing to the event channel.
+                _exceptionStopPending = false;
+                pAppDomain.Continue(0);
+            }
+            else
+            {
+                // v1 did not fire (should not happen on .NET 10) — handle here as fallback.
+                try
+                {
+                    pThread.GetID(out uint tid);
+                    CurrentStoppedThreadId = tid;
+                    var (exType, exMsg) = TryReadExceptionInfo(pThread);
+                    _events.TryWrite(new ExceptionEvent(exType, exMsg, (int)tid, true));
+                }
+                catch { pAppDomain.Continue(0); }
+            }
         }
         else
         {
-            // First-chance / catch-handler-found: continue silently
+            // First-chance / catch-handler-found: continue silently.
+            // First-chance notifications are handled in the v1 callback.
             pAppDomain.Continue(0);
         }
     }
@@ -300,6 +340,106 @@ internal sealed partial class ManagedCallbackHandler
         ICorDebugMDA pMDA)
     {
         try { pController.Continue(0); } catch { /* ignore */ }
+    }
+
+    // -----------------------------------------------------------------------
+    // Helper: read exception type and message from the thread's current exception
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the exception type name and message from the thread's current exception.
+    /// Must be called while stopped in an exception callback (before any Continue call).
+    /// </summary>
+    private static (string typeName, string message) TryReadExceptionInfo(ICorDebugThread pThread)
+    {
+        try
+        {
+            pThread.GetCurrentException(out ICorDebugValue exVal);
+            if (exVal == null) return ("<unknown>", "No exception available");
+
+            // Dereference the reference value to get the actual exception object
+            ICorDebugValue actual = exVal;
+            if (exVal is ICorDebugReferenceValue rv)
+            {
+                rv.IsNull(out int isNull);
+                if (isNull != 0) return ("<unknown>", "Exception reference is null");
+                rv.Dereference(out ICorDebugValue inner);
+                actual = inner;
+            }
+
+            string typeName = "<unknown>";
+            string message = "Unhandled exception";
+
+            if (actual is ICorDebugObjectValue objVal)
+            {
+                objVal.GetClass(out ICorDebugClass cls);
+                cls.GetModule(out ICorDebugModule module);
+                cls.GetToken(out uint typedefToken);
+                string dllPath = VariableReader.GetModulePath(module);
+
+                typeName = VariableReader.GetTypeName(dllPath, typedefToken);
+                if (string.IsNullOrEmpty(typeName) || typeName == "object")
+                    typeName = "<unknown>";
+
+                // Read _message field — System.Exception stores message in private field _message.
+                // Walk inheritance chain via VariableReader.ReadInstanceFieldsFromPE (same pattern
+                // used successfully for DivideByZeroException in Phase 6 tests).
+                string? found = TryReadStringField(objVal, dllPath, typedefToken, "_message");
+                if (found != null) message = found;
+            }
+
+            return (typeName, message);
+        }
+        catch { return ("<unknown>", "Exception info unavailable"); }
+    }
+
+    /// <summary>
+    /// Reads a single string field from an exception object by walking the inheritance chain.
+    /// Returns null if the field is not found or cannot be read.
+    /// </summary>
+    private static string? TryReadStringField(
+        ICorDebugObjectValue objVal, string dllPath, uint typedefToken, string fieldName)
+    {
+        uint current = typedefToken;
+        while (current != 0)
+        {
+            var fields = VariableReader.ReadInstanceFieldsFromPE(dllPath, current);
+            uint targetRid = 0;
+            foreach (var (rid, name) in fields)
+            {
+                if (name == fieldName) { targetRid = rid; break; }
+            }
+            if (targetRid != 0)
+            {
+                try
+                {
+                    objVal.GetClass(out ICorDebugClass cls);
+                    objVal.GetFieldValue(cls, targetRid, out ICorDebugValue fieldVal);
+                    if (fieldVal is ICorDebugReferenceValue rv2)
+                    {
+                        rv2.IsNull(out int isNull);
+                        if (isNull != 0) return null;
+                        rv2.Dereference(out ICorDebugValue inner2);
+                        if (inner2 is ICorDebugStringValue sv)
+                        {
+                            sv.GetLength(out uint len);
+                            if (len == 0) return string.Empty;
+                            IntPtr buf = System.Runtime.InteropServices.Marshal.AllocHGlobal((int)(len + 1) * 2);
+                            try
+                            {
+                                sv.GetString(len, out _, buf);
+                                return System.Runtime.InteropServices.Marshal.PtrToStringUni(buf, (int)len);
+                            }
+                            finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buf); }
+                        }
+                    }
+                }
+                catch { /* field not readable in this frame */ }
+                return null;
+            }
+            current = VariableReader.GetBaseTypeToken(dllPath, current);
+        }
+        return null;
     }
 
     // -----------------------------------------------------------------------

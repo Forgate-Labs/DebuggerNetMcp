@@ -516,7 +516,7 @@ internal static class VariableReader
     }
 
     /// <summary>Returns the module file path from an ICorDebugModule.</summary>
-    private static string GetModulePath(ICorDebugModule module)
+    internal static string GetModulePath(ICorDebugModule module)
     {
         uint nameLen = 512;
         IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
@@ -533,7 +533,7 @@ internal static class VariableReader
     /// Returns the TypeDef token of the base type of <paramref name="typedefToken"/>
     /// in the same assembly. Returns 0 if the base is in another assembly or is System.Object.
     /// </summary>
-    private static uint GetBaseTypeToken(string dllPath, uint typedefToken)
+    internal static uint GetBaseTypeToken(string dllPath, uint typedefToken)
     {
         try
         {
@@ -563,7 +563,7 @@ internal static class VariableReader
     /// Reads all instance field tokens and names from PE metadata for a given TypeDef.
     /// Uses System.Reflection.Metadata — no COM interop required.
     /// </summary>
-    private static Dictionary<uint, string> ReadInstanceFieldsFromPE(string dllPath, uint typedefToken)
+    internal static Dictionary<uint, string> ReadInstanceFieldsFromPE(string dllPath, uint typedefToken)
     {
         var result = new Dictionary<uint, string>();
         try
@@ -639,7 +639,7 @@ internal static class VariableReader
     }
 
     /// <summary>Returns the simple type name (e.g. "List`1", "Person") from PE metadata.</summary>
-    private static string GetTypeName(string dllPath, uint typedefToken)
+    internal static string GetTypeName(string dllPath, uint typedefToken)
     {
         try
         {
