@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 6 of 9 (Closures, Iterators & Object Graph) — IN PROGRESS
-Plan: 1 of 3 complete
-Status: In Progress — 06-01 complete, ready for 06-02
-Last activity: 2026-02-23 — 06-01 closure detection + iterator Current/_state exposure
+Plan: 2 of 3 complete
+Status: In Progress — 06-02 complete, ready for 06-03
+Last activity: 2026-02-23 — 06-02 circular reference detection + computed property reporting
 
 Progress: [█████░░░░░] 55% (5/9 phases complete, Phase 6 in progress)
 
@@ -34,6 +34,7 @@ Progress: [█████░░░░░] 55% (5/9 phases complete, Phase 6 in 
 | Phase 05 P02 | 179 | 2 tasks | 4 files |
 | Phase 05-type-system P03 | 10 | 2 tasks | 1 files |
 | Phase 06-closures-iterators-object-graph P01 | 15 | 2 tasks | 2 files |
+| Phase 06-closures-iterators-object-graph P02 | 4 | 2 tasks | 1 file |
 
 ## Accumulated Context
 
@@ -59,15 +60,17 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 05-03]: Sections 13-16 inserted after section 9 (file had only 1-9); IsEnumType BCL fix adds TypeDefinitionHandle path for DayOfWeek and other System enums
 - [Phase 06-closures-iterators-object-graph]: Closure detection: smMethodName.Contains('>b__') triggers the same this-reading path as MoveNext — no code duplication needed
 - [Phase 06-closures-iterators-object-graph]: Iterator fields <>2__current and <>1__state exposed with friendly names (Current, _state) instead of skipped — specific checks before general <> guard
+- [Phase 06-02]: Circular reference guard: GetAddress() after Dereference(); addr==0 guard handles unaddressable values; failure is non-fatal
+- [Phase 06-02]: Computed property backing-field check uses only concrete typedefToken (not inheritance chain) — backing fields always declared on same type as property
 
 ### Blockers/Concerns
 
-- Computed properties: no backing field in PE — may require IL eval or mark as "<computed>"
-- Circular references: VariableReader.ReadObject circular ref detection now COMPLETE (Phase 06-01 fixed incomplete research changes)
+- Computed properties: RESOLVED (Phase 06-02) — PE property scan adds <computed> entries
+- Circular references: RESOLVED (Phase 06-01/06-02) — HashSet<ulong> visited guards against cyclic graphs
 - dotnet test: process model differs from launch — CreateProcess timing may vary
 
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 06-01-PLAN.md (closure detection + iterator Current/_state exposure; ready for 06-02 live test)
+Stopped at: Completed 06-02-PLAN.md (circular reference detection + computed property reporting; ready for 06-03)
 Resume file: None

@@ -172,7 +172,7 @@ Plans:
 | 3. Debug Engine | v1.0 | 5/5 | Complete | 2026-02-22 |
 | 4. MCP Server | v1.0 | 2/2 | Complete | 2026-02-23 |
 | 5. Type System | v1.1 | 3/3 | Complete | 2026-02-23 |
-| 6. Closures, Iterators & Object Graph | v1.1 | 0/3 | Not started | - |
+| 6. Closures, Iterators & Object Graph | 2/3 | In Progress|  | - |
 | 7. Exceptions, Threading & Attach | v1.1 | 0/TBD | Not started | - |
 | 8. Stack Trace & dotnet test | v1.1 | 0/TBD | Not started | - |
 | 9. Tests & Documentation | v1.1 | 0/TBD | Not started | - |

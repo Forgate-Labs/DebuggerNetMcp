@@ -59,8 +59,8 @@
 
 ### Grafo de Objetos (GRAPH)
 
-- [ ] **GRAPH-01**: VariableReader detecta referências circulares e retorna marker "circular reference" sem stack overflow
-- [ ] **GRAPH-02**: Computed properties (sem backing field no PE) são reportadas com valor obtido via IL evaluation ou marcadas como "\<computed\>"
+- [x] **GRAPH-01**: VariableReader detecta referências circulares e retorna marker "circular reference" sem stack overflow
+- [x] **GRAPH-02**: Computed properties (sem backing field no PE) são reportadas com valor obtido via IL evaluation ou marcadas como "\<computed\>"
 
 ### Exceções (EXCP)
 
@@ -138,8 +138,8 @@
 | TYPE-04 | Phase 5 | Complete |
 | CLSR-01 | Phase 6 | Complete |
 | CLSR-02 | Phase 6 | Complete |
-| GRAPH-01 | Phase 6 | Pending |
-| GRAPH-02 | Phase 6 | Pending |
+| GRAPH-01 | Phase 6 | Complete |
+| GRAPH-02 | Phase 6 | Complete |
 | TEST-08 | Phase 6 | Pending |
 | EXCP-01 | Phase 7 | Pending |
 | EXCP-02 | Phase 7 | Pending |
