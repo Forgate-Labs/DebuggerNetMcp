@@ -8,7 +8,7 @@ using DebuggerNetMcp.Core.Engine;
 public sealed class DebuggerTools(DotnetDebugger debugger)
 {
     private string _state = "idle";  // idle | running | stopped | exited
-    private const string ServerVersion = "0.8.0";
+    private const string ServerVersion = "0.9.0";
 
     // -----------------------------------------------------------------------
     // Private helpers
@@ -109,6 +109,37 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
                 state = "attached",
                 pid = confirmedPid,
                 processName
+            });
+        }
+        catch (Exception ex)
+        {
+            return JsonSerializer.Serialize(new { success = false, error = ex.Message });
+        }
+    }
+
+    [McpServerTool(Name = "debug_launch_test"),
+     Description("Launch an xUnit test project under debug mode using VSTEST_HOST_DEBUG, " +
+                 "attach to the testhost process, and return the process info. " +
+                 "After calling this, set breakpoints with debug_set_breakpoint then call debug_continue.")]
+    public async Task<string> LaunchTest(
+        [Description("Absolute path to the xUnit test project directory or .csproj file")]
+        string projectPath,
+        [Description("Optional test filter expression passed to --filter (e.g. 'FullyQualifiedName~MyTest')")]
+        string? filter = null,
+        CancellationToken ct = default)
+    {
+        using var cts = CreateToolCts(ct);
+        try
+        {
+            var (pid, processName) = await debugger.LaunchTestAsync(projectPath, filter, cts.Token);
+            _state = "running";
+            return JsonSerializer.Serialize(new
+            {
+                success = true,
+                state = "attached",
+                pid,
+                processName,
+                note = "testhost attached — set breakpoints then call debug_continue"
             });
         }
         catch (Exception ex)
