@@ -5,14 +5,32 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Milestone v1.1 — Complete .NET Debug Coverage
+**Current focus:** Milestone v1.1 — Phase 5: Type System
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-23 — Milestone v1.1 started
+Phase: 5 of 9 (Type System)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-02-23 — v1.1 roadmap created, Phases 5-9 defined
+
+Progress: [████░░░░░░] 44% (4/9 phases complete)
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 13
+- Average duration: unknown
+- Total execution time: unknown
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 1. Foundation | 3 | - | - |
+| 2. Interop + Engine Foundation | 3 | - | - |
+| 3. Debug Engine | 5 | - | - |
+| 4. MCP Server | 2 | - | - |
 
 ## Accumulated Context
 
@@ -20,37 +38,26 @@ Last activity: 2026-02-23 — Milestone v1.1 started
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
-**v1.0 validated decisions:**
-- ICorDebug direto (sem DAP) ✓ — eliminates netcoredbg race condition at the root
-- PTRACE_SEIZE ✓ — compatible with kernel 6.12+
-- Channel<DebugEvent> ✓ — decouples ICorDebug thread from MCP async tools
-- Thread dedicada para ICorDebug ✓ — COM requirement enforced
-- ICorDebugCode.CreateBreakpoint(ilOffset) ✓ — exact offset fix for .NET 10 JIT
-- BreakpointTokenToId chave (token,offset) ✓ — multiple BPs in same method
-- StepRange com PDB ✓ — Step() one-instruction limitation in .NET 10
-- Event channel sempre recriado ✓ — buffered items cause false IsCompleted
+**v1.0 validated:**
+- ICorDebug direto (sem DAP) — eliminates netcoredbg race condition at root
+- PTRACE_SEIZE — compatible with kernel 6.12+
+- ICorDebugCode.CreateBreakpoint(ilOffset) — exact offset fix for .NET 10 JIT
+- Event channel sempre recriado — buffered items cause false IsCompleted
 
-**v1.1 architectural notes (from current session):**
-- IMetaDataImport NÃO funciona no Linux (COM Interop not supported) — usar PEReader
-- Variáveis async hoistadas: nome `<counter>5__2` → exibir `counter`; `<>1__state` → skip
-- MoveNext `this` argument = state machine instance (ICorDebugReferenceValue → Dereference() → ICorDebugObjectValue)
-- GetFieldValue para reference types retorna ICorDebugReferenceValue → Dereference() antes de cast
-- GetModulePathInternal via Marshal.AllocHGlobal + PtrToStringUni (GetName via unmanaged buffer)
-- frame.CreateStepper mais preciso que thread.CreateStepper para async contexts
-
-### Pending Todos
-
-None.
+**v1.1 known constraints:**
+- IMetaDataImport NÃO funciona no Linux — usar PEReader para metadata
+- Async hoisted vars: `<counter>5__2` → display as `counter`; `<>1__state` → skip
+- Reverse PDB lookup not yet implemented — stacktrace shows hex tokens
+- Static fields: ICorDebugClass.GetStaticFieldValue needs active thread — sequencing needed
 
 ### Blockers/Concerns
 
-- Reverse PDB lookup (IL→source) não implementado ainda — debug_stacktrace retorna tokens (0x0600xxxx)
-- Static fields: ICorDebugClass.GetStaticFieldValue requires active thread — sequencing needed
-- Computed properties: sem backing field no PE — pode requerer IL eval ou reflection
-- Circular references: VariableReader.ReadObject não tem depth tracking — pode stack overflow em grafos circulares
+- Computed properties: no backing field in PE — may require IL eval or mark as "<computed>"
+- Circular references: VariableReader.ReadObject has no depth tracking — stack overflow risk
+- dotnet test: process model differs from launch — CreateProcess timing may vary
 
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed v1.0 manual testing (all 12 HelloDebug sections passing), started v1.1 milestone
+Stopped at: Roadmap created for v1.1 (Phases 5-9), ready to plan Phase 5
 Resume file: None

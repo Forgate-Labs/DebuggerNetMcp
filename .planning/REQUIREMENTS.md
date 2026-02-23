@@ -140,6 +140,7 @@
 | CLSR-02 | Phase 6 | Pending |
 | GRAPH-01 | Phase 6 | Pending |
 | GRAPH-02 | Phase 6 | Pending |
+| TEST-08 | Phase 6 | Pending |
 | EXCP-01 | Phase 7 | Pending |
 | EXCP-02 | Phase 7 | Pending |
 | THRD-01 | Phase 7 | Pending |
@@ -152,7 +153,6 @@
 | DTEST-02 | Phase 8 | Pending |
 | TEST-02 | Phase 9 | Pending |
 | TEST-03 | Phase 9 | Pending |
-| TEST-08 | Phase 9 | Pending |
 | TEST-09 | Phase 9 | Pending |
 | DOCS-01 | Phase 9 | Pending |
 
@@ -163,4 +163,4 @@
 
 ---
 *Requirements defined: 2026-02-22*
-*Last updated: 2026-02-23 — v1.1 requirements added (TYPE, CLSR, GRAPH, EXCP, THRD, ATCH, STKT, DTEST, TEST, DOCS)*
+*Last updated: 2026-02-23 — v1.1 requirements added (TYPE, CLSR, GRAPH, EXCP, THRD, ATCH, STKT, DTEST, TEST, DOCS); traceability updated for Phases 5-9*
