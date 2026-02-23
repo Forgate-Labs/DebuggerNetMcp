@@ -91,7 +91,7 @@
 
 - [ ] **TEST-02**: PdbReaderTests.cs — testa mapeamento source→IL e reverse IL→source para HelloDebug e HelloDebug v1.1
 - [ ] **TEST-03**: DebuggerIntegrationTests.cs — fluxo completo: launch → breakpoint → variables → continue → exit sem intervenção manual
-- [ ] **TEST-08**: HelloDebug expandido com seções 13-19 cobrindo struct, enum, nullable, closure, iterator, threading, circular ref
+- [x] **TEST-08**: HelloDebug expandido com seções 13-19 cobrindo struct, enum, nullable, closure, iterator, threading, circular ref
 - [ ] **TEST-09**: Integration tests para exceções não-capturadas, multi-threading e process attach
 
 ### Documentação (DOCS)
@@ -140,7 +140,7 @@
 | CLSR-02 | Phase 6 | Complete |
 | GRAPH-01 | Phase 6 | Complete |
 | GRAPH-02 | Phase 6 | Complete |
-| TEST-08 | Phase 6 | Pending |
+| TEST-08 | Phase 6 | Complete |
 | EXCP-01 | Phase 7 | Pending |
 | EXCP-02 | Phase 7 | Pending |
 | THRD-01 | Phase 7 | Pending |
