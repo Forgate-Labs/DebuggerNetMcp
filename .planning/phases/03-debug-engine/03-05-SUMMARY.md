@@ -123,6 +123,22 @@ None - no external service configuration required.
 - Phase 4 (MCP tools) can now wire GetStackTraceAsync, GetLocalsAsync, EvaluateAsync to tool handlers
 - Known gap: GetStackTraceAsync returns method tokens (0x0600xxxx) instead of human-readable method names; reverse PDB lookup deferred
 
+## Self-Check: PASSED
+
+- VariableReader.cs: FOUND
+- DotnetDebugger.cs: FOUND
+- SUMMARY.md: FOUND
+- Commit 4eee407 (Task 1): FOUND
+- Commit 91084aa (Task 2): FOUND
+- Build: 0 errors, 0 warnings
+- IMetaDataImportMinimal in VariableReader: 4 matches
+- EnumFields in VariableReader: 1 match
+- GetFieldProps in VariableReader: 1 match
+- GetStackTraceAsync/GetLocalsAsync/EvaluateAsync in DotnetDebugger: 3 matches
+- GetLocalVariable in DotnetDebugger: 3 matches (comment + 2 calls)
+- CORDBG_E_IL_VAR_NOT_AVAILABLE in DotnetDebugger: 5 matches
+- GetLocalNames in PdbReader: 1 match
+
 ---
 *Phase: 03-debug-engine*
 *Completed: 2026-02-22*
