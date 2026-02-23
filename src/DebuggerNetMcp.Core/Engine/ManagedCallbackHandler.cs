@@ -31,6 +31,10 @@ internal sealed partial class ManagedCallbackHandler
     // Action invoked when a module loads — set by DotnetDebugger for pending breakpoint resolution
     internal Action<ICorDebugModule>? OnModuleLoaded { get; set; }
 
+    // When true, CreateProcess does NOT call Continue and emits a StoppedEvent("process_created").
+    // Set by DotnetDebugger before launch so the caller can configure breakpoints before execution.
+    internal bool StopAtCreateProcess { get; set; }
+
     // Maps ICorDebugFunctionBreakpoint wrapper object reference → breakpoint ID for hit reporting.
     // Source-generated COM interfaces wrap native pointers in managed proxy objects; identity
     // comparison (ReferenceEquals) is NOT reliable across callback boundaries. We use the
@@ -132,12 +136,20 @@ internal sealed partial class ManagedCallbackHandler
 
     public void CreateProcess(ICorDebugProcess pProcess)
     {
-        try
+        Process = pProcess;
+        OnProcessCreated?.Invoke(pProcess);
+
+        if (StopAtCreateProcess)
         {
-            Process = pProcess;
-            OnProcessCreated?.Invoke(pProcess);
+            // STOPPING: do NOT call Continue — process is paused so the caller can set breakpoints.
+            // LaunchAsync is waiting for this event on the event channel.
+            StopAtCreateProcess = false;
+            _events.TryWrite(new StoppedEvent("process_created", 0, null));
         }
-        finally { pProcess.Continue(0); }
+        else
+        {
+            pProcess.Continue(0);
+        }
     }
 
     public void ExitProcess(ICorDebugProcess pProcess)

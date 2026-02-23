@@ -55,7 +55,8 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
 
     [McpServerTool(Name = "debug_launch"),
      Description("Build and launch a .NET project under the debugger. " +
-                 "Returns when the process is created. Use debug_continue to run until a breakpoint.")]
+                 "Returns with state=stopped once the process is created and suspended. " +
+                 "Set breakpoints now (they will be activated when modules load), then call debug_continue to run.")]
     public async Task<string> Launch(
         [Description("Path to the .csproj file or project directory")] string projectPath,
         [Description("Path to the compiled .dll to debug (e.g. bin/Debug/net10.0/App.dll)")] string appDllPath,
@@ -64,7 +65,9 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         try
         {
             await debugger.LaunchAsync(projectPath, appDllPath, ct);
-            _state = "running";
+            // LaunchAsync waits for the CreateProcess stopping event, so the process is suspended.
+            // The caller should set breakpoints and then call debug_continue.
+            _state = "stopped";
             return JsonSerializer.Serialize(new { success = true, state = _state });
         }
         catch (Exception ex)

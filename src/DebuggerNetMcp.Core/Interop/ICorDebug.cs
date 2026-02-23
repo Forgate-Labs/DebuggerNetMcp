@@ -453,6 +453,12 @@ internal partial interface ICorDebugContext : ICorDebugObjectValue
 [Guid("CC7BCAF4-8A68-11D2-983C-0000F808342D")]
 internal partial interface ICorDebugCode
 {
+    // vtable order matches ICorDebugCode (corhdr.h / cordebug.idl)
+    void GetIsIL(out int pbIL);
+    void GetFunction(out ICorDebugFunction ppFunction);
+    void GetAddress(out ulong pStart);
+    void GetSize(out uint pcBytes);
+    void CreateBreakpoint(uint nOffset, out ICorDebugFunctionBreakpoint ppBreakpoint);
 }
 
 [GeneratedComInterface]

@@ -107,7 +107,11 @@ public sealed class DotnetDebugger : IAsyncDisposable
         // Step 1: dotnet build -c Debug
         await BuildProjectAsync(projectPath, ct);
 
-        // Step 2: Launch under debugger via command channel (must run on debug thread)
+        // Step 2: Launch under debugger via command channel (must run on debug thread).
+        // Set StopAtCreateProcess so the process halts at the CreateProcess event and emits a
+        // StoppedEvent("process_created") before any user code runs.  This lets the caller
+        // configure breakpoints (as pending, since modules load after the first Continue).
+        _callbackHandler.StopAtCreateProcess = true;
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await DispatchAsync(() =>
         {
@@ -118,11 +122,19 @@ public sealed class DotnetDebugger : IAsyncDisposable
             }
             catch (Exception ex)
             {
+                _callbackHandler.StopAtCreateProcess = false;
                 tcs.SetException(ex);
             }
         }, ct);
 
         await tcs.Task.WaitAsync(ct);
+
+        // Step 3: Wait for the CreateProcess stopping event (or a startup error).
+        var startupEvent = await WaitForEventAsync(ct);
+        if (startupEvent is ExceptionEvent exc)
+            throw new InvalidOperationException($"{exc.ExceptionType}: {exc.Message}");
+        // On StoppedEvent("process_created") the process is suspended.
+        // The caller should now set breakpoints and then call ContinueAsync.
     }
 
     /// <summary>
@@ -321,12 +333,16 @@ public sealed class DotnetDebugger : IAsyncDisposable
     private void ResolveBreakpoint(ICorDebugModule module, int id, int methodToken, int ilOffset)
     {
         module.GetFunctionFromToken((uint)methodToken, out ICorDebugFunction fn);
-        fn.CreateBreakpoint(out ICorDebugFunctionBreakpoint bp);
+
+        // Use ICorDebugCode.CreateBreakpoint(offset) to set at exact IL offset.
+        // fn.CreateBreakpoint() only sets at the function entry point (offset 0),
+        // which caused breakpoints to be ignored in .NET 10 where the JIT behavior differs.
+        fn.GetILCode(out ICorDebugCode ilCode);
+        ilCode.CreateBreakpoint((uint)ilOffset, out ICorDebugFunctionBreakpoint bp);
         bp.Activate(1);  // 1 = enabled
         _activeBreakpoints[id] = bp;
 
         // Register for hit reporting: use the stable methodDef token as key
-        // (BreakpointTokenToId key is uint methodDef, per STATE.md decision)
         _callbackHandler.BreakpointTokenToId[(uint)methodToken] = id;
     }
 
