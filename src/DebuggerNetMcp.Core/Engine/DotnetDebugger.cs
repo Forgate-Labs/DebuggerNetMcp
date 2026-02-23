@@ -760,20 +760,34 @@ public sealed class DotnetDebugger : IAsyncDisposable
                                 objVal.GetClass(out ICorDebugClass cls);
                                 foreach (var (fieldToken, fieldName) in smTypeFields)
                                 {
-                                    // Skip compiler infrastructure fields: <>1__state, <>t__builder, <>u__1 etc.
-                                    if (fieldName.StartsWith("<>")) continue;
-
-                                    // Hoisted user variables are named <OriginalName>N__M (e.g. <counter>5__2).
-                                    // Extract the original name from between < and >.
+                                    // Iterator current value: expose as "Current" instead of skipping
                                     string displayName = fieldName;
-                                    if (fieldName.StartsWith("<"))
+                                    if (fieldName == "<>2__current")
+                                    {
+                                        displayName = "Current";
+                                        // fall through — do NOT continue
+                                    }
+                                    // Iterator / async state position: expose as "_state"
+                                    else if (fieldName == "<>1__state")
+                                    {
+                                        displayName = "_state";
+                                        // fall through — do NOT continue
+                                    }
+                                    // Skip all other compiler infrastructure fields: <>t__builder, <>u__1 etc.
+                                    else if (fieldName.StartsWith("<>"))
+                                    {
+                                        continue;
+                                    }
+                                    // Existing hoisted variable name extraction (async): <counter>5__2 → "counter"
+                                    else if (fieldName.StartsWith("<"))
                                     {
                                         int closeAngle = fieldName.IndexOf('>');
                                         if (closeAngle > 1)
                                             displayName = fieldName.Substring(1, closeAngle - 1);
                                         else
-                                            continue;  // malformed name — skip
+                                            continue; // malformed name — skip
                                     }
+                                    // else: plain name (closures) — displayName = fieldName already set above
 
                                     try
                                     {
