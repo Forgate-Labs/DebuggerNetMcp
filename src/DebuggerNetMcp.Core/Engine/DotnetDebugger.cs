@@ -730,7 +730,9 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 // (C# async variables are stored as fields of the state machine struct, not as IL locals)
                 bool readFromStateMachine = false;
                 var (smMethodName, smTypeFields) = PdbReader.GetMethodTypeFields(dllPath, (int)methodToken);
-                if (smMethodName == "MoveNext" && smTypeFields.Count > 0)
+                // NEW: closure display class detection
+                bool isClosureMethod = smMethodName.Contains(">b__");
+                if ((smMethodName == "MoveNext" || isClosureMethod) && smTypeFields.Count > 0)
                 {
                     try
                     {

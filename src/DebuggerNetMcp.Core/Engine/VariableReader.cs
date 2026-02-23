@@ -68,8 +68,10 @@ internal static class VariableReader
     /// <param name="value">The ICorDebugValue to inspect.</param>
     /// <param name="depth">Current recursion depth (0 = top level).</param>
     /// <returns>A VariableInfo with Type, Value, and optional Children.</returns>
-    public static VariableInfo ReadValue(string name, ICorDebugValue value, int depth = 0)
+    public static VariableInfo ReadValue(string name, ICorDebugValue value, int depth = 0, HashSet<ulong>? visited = null)
     {
+        visited ??= new HashSet<ulong>();
+
         if (depth > MaxDepth)
             return new VariableInfo(name, "...", "...", Array.Empty<VariableInfo>());
 
@@ -95,7 +97,7 @@ internal static class VariableReader
             try
             {
                 var av = (ICorDebugArrayValue)value;
-                return ReadArray(name, av, depth);
+                return ReadArray(name, av, depth, visited);
             }
             catch { }
 
@@ -106,7 +108,7 @@ internal static class VariableReader
                 refFallback.IsNull(out int isNullFb);
                 if (isNullFb != 0) return new VariableInfo(name, "object", "null", Array.Empty<VariableInfo>());
                 refFallback.Dereference(out ICorDebugValue derefFb);
-                return ReadValue(name, derefFb, depth);
+                return ReadValue(name, derefFb, depth, visited);
             }
             catch { }
 
@@ -132,11 +134,11 @@ internal static class VariableReader
                 CorElementType.R4       => ReadR4(name, value),
                 CorElementType.R8       => ReadR8(name, value),
                 CorElementType.String   => ReadString(name, value),
-                CorElementType.SzArray  => ReadArray(name, value, depth),
-                CorElementType.Array    => ReadArray(name, value, depth),
-                CorElementType.Object   => ReadObject(name, value, depth, "object"),
-                CorElementType.Class    => ReadObject(name, value, depth, "object"),
-                CorElementType.ValueType => ReadObject(name, value, depth, "struct"),
+                CorElementType.SzArray  => ReadArray(name, value, depth, visited),
+                CorElementType.Array    => ReadArray(name, value, depth, visited),
+                CorElementType.Object   => ReadObject(name, value, depth, "object", visited),
+                CorElementType.Class    => ReadObject(name, value, depth, "object", visited),
+                CorElementType.ValueType => ReadObject(name, value, depth, "struct", visited),
                 _                       => new VariableInfo(name, $"<{elementType}>", "?", Array.Empty<VariableInfo>())
             };
         }
@@ -291,7 +293,7 @@ internal static class VariableReader
     // Array reader
     // ---------------------------------------------------------------------------
 
-    private static VariableInfo ReadArray(string name, ICorDebugValue value, int depth)
+    private static VariableInfo ReadArray(string name, ICorDebugValue value, int depth, HashSet<ulong> visited)
     {
         // Similar to ReadString: dereference first if direct cast fails.
         ICorDebugArrayValue? arrVal = null;
@@ -324,7 +326,7 @@ internal static class VariableReader
                 try
                 {
                     arrVal.GetElementAtPosition(i, out var elem);
-                    children.Add(ReadValue($"[{i}]", elem, depth + 1));
+                    children.Add(ReadValue($"[{i}]", elem, depth + 1, visited));
                 }
                 catch (Exception ex)
                 {
@@ -341,7 +343,7 @@ internal static class VariableReader
     // Object / value-type reader
     // ---------------------------------------------------------------------------
 
-    private static VariableInfo ReadObject(string name, ICorDebugValue value, int depth, string typeName)
+    private static VariableInfo ReadObject(string name, ICorDebugValue value, int depth, string typeName, HashSet<ulong> visited)
     {
         if (depth > MaxDepth)
             return new VariableInfo(name, typeName, "<max depth>", Array.Empty<VariableInfo>());
@@ -360,6 +362,17 @@ internal static class VariableReader
                     return new VariableInfo(name, typeName, "null", Array.Empty<VariableInfo>());
 
                 refVal.Dereference(out actualValue);
+
+                // Circular reference check: get heap address of dereferenced object
+                try
+                {
+                    actualValue.GetAddress(out ulong addr);
+                    if (addr != 0 && !visited.Add(addr))
+                    {
+                        return new VariableInfo(name, typeName, "<circular reference>", Array.Empty<VariableInfo>());
+                    }
+                }
+                catch { /* GetAddress failure is non-fatal; skip circular check */ }
             }
             catch (InvalidCastException)
             {
@@ -374,11 +387,12 @@ internal static class VariableReader
         if (actualValue is not ICorDebugObjectValue objVal)
             return new VariableInfo(name, typeName, "<not an object>", Array.Empty<VariableInfo>());
 
-        return ReadObjectFields(name, typeName, objVal, depth);
+        return ReadObjectFields(name, typeName, objVal, depth, visited);
     }
 
-    private static VariableInfo ReadObjectFields(string name, string typeName, ICorDebugObjectValue objVal, int depth)
+    private static VariableInfo ReadObjectFields(string name, string typeName, ICorDebugObjectValue objVal, int depth, HashSet<ulong>? visited = null)
     {
+        visited ??= new HashSet<ulong>();
         try
         {
             objVal.GetClass(out ICorDebugClass cls);
@@ -440,7 +454,7 @@ internal static class VariableReader
                         try
                         {
                             objVal.GetFieldValue(levelClass, fieldToken, out ICorDebugValue fieldVal);
-                            children.Add(ReadValue(displayName, fieldVal, depth + 1));
+                            children.Add(ReadValue(displayName, fieldVal, depth + 1, visited));
                         }
                         catch { /* field not available at this point */ }
                     }
