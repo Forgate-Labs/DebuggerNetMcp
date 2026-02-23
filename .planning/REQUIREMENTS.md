@@ -31,17 +31,17 @@
 - [x] **ENGINE-04**: DotnetDebugger.cs — LaunchAsync (dotnet build -c Debug + RegisterForRuntimeStartup) e AttachAsync
 - [x] **ENGINE-05**: DotnetDebugger.cs — controle de execução: ContinueAsync, StepOverAsync, StepIntoAsync, StepOutAsync, PauseAsync
 - [x] **ENGINE-06**: DotnetDebugger.cs — breakpoints: SetBreakpointAsync(file, line), RemoveBreakpointAsync(id)
-- [ ] **ENGINE-07**: DotnetDebugger.cs — inspeção: GetStackTraceAsync, GetLocalsAsync, EvaluateAsync
+- [x] **ENGINE-07**: DotnetDebugger.cs — inspeção: GetStackTraceAsync, GetLocalsAsync, EvaluateAsync
 - [x] **ENGINE-08**: Thread dedicada para ICorDebug + Channel<DebugEvent> para comunicação async com as tools MCP
 
 ### MCP Server (C#)
 
-- [ ] **MCP-01**: Program.cs com MCP server via stdio usando NuGet ModelContextProtocol, DI com DotnetDebugger singleton
+- [x] **MCP-01**: Program.cs com MCP server via stdio usando NuGet ModelContextProtocol, DI com DotnetDebugger singleton
 - [ ] **MCP-02**: DebuggerTools.cs — 14 tools com [McpServerTool] e [Description] em inglês: debug_launch, debug_attach, debug_set_breakpoint, debug_remove_breakpoint, debug_continue, debug_step_over, debug_step_into, debug_step_out, debug_variables, debug_evaluate, debug_stacktrace, debug_pause, debug_disconnect, debug_status
 
 ### Tests
 
-- [ ] **TEST-01**: TestApps/HelloDebug/Program.cs — app de teste com variáveis primitivas, objetos complexos, listas/arrays e exceção capturada
+- [x] **TEST-01**: TestApps/HelloDebug/Program.cs — app de teste com variáveis primitivas, objetos complexos, listas/arrays e exceção capturada
 - [ ] **TEST-02**: PdbReaderTests.cs — testa mapeamento de linhas para o HelloDebug
 - [ ] **TEST-03**: DebuggerIntegrationTests.cs — fluxo completo: launch → breakpoint → variables → continue → exit
 
@@ -89,11 +89,11 @@
 | ENGINE-04 | Phase 3 | Complete |
 | ENGINE-05 | Phase 3 | Complete |
 | ENGINE-06 | Phase 3 | Complete |
-| ENGINE-07 | Phase 3 | Pending |
+| ENGINE-07 | Phase 3 | Complete |
 | ENGINE-08 | Phase 3 | Complete |
-| MCP-01 | Phase 4 | Pending |
+| MCP-01 | Phase 4 | Complete |
 | MCP-02 | Phase 4 | Pending |
-| TEST-01 | Phase 4 | Pending |
+| TEST-01 | Phase 4 | Complete |
 | TEST-02 | Phase 5 | Pending |
 | TEST-03 | Phase 5 | Pending |
 | DOCS-01 | Phase 5 | Pending |

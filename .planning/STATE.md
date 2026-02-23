@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Phase 3 - Debug Engine
+**Current focus:** Phase 4 - MCP Server
 
 ## Current Position
 
-Phase: 3 of 5 (Debug Engine)
-Plan: 5 of 5 in current phase — COMPLETE
-Status: Phase Complete
-Last activity: 2026-02-22 — Completed 03-05 (DotnetDebugger.cs inspection methods: GetStackTraceAsync, GetLocalsAsync, EvaluateAsync; VariableReader.ReadObjectFields; PdbReader.GetLocalNames)
+Phase: 4 of 5 (MCP Server)
+Plan: 1 of 2 in current phase — COMPLETE
+Status: In Progress
+Last activity: 2026-02-23 — Completed 04-01 (ModelContextProtocol package + MCP stdio host Program.cs; HelloDebug TEST-01 confirmed)
 
-Progress: [████████░░] ~75%
+Progress: [█████████░] ~85%
 
 ## Performance Metrics
 
@@ -41,6 +41,7 @@ Progress: [████████░░] ~75%
 | Phase 03-debug-engine P03 | 3min | 1 tasks | 1 files |
 | Phase 03-debug-engine P04 | 2min | 2 tasks | 2 files |
 | Phase 03 P05 | 2min | 2 tasks | 4 files |
+| Phase 04-mcp-server P01 | 1min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 03]: ICorDebugChain GeneratedComInterface stub requires full vtable through EnumerateFrames per cordebug.idl
 - [Phase 03]: Marshal.GetObjectForIUnknown retained for IMetaDataImportMinimal (CA1416 suppressed) — ComImport interfaces cannot use StrategyBasedComWrappers
 - [Phase 03]: GetStackTraceAsync source location deferred — PdbReader only has forward (source->IL) lookup; reverse IL->source lookup is future work
+- [Phase 04-mcp-server]: Logging routed to stderr (LogToStandardErrorThreshold=Trace) — stdout reserved exclusively for MCP wire protocol JSON-RPC messages
+- [Phase 04-mcp-server]: DebuggerTools forward-declared in WithTools<DebuggerTools>() — type satisfied by Plan 02, project intentionally unbuildable until then
 
 ### Pending Todos
 
@@ -90,6 +93,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Completed 03-05-PLAN.md (DotnetDebugger.cs inspection methods + VariableReader ReadObject + PdbReader.GetLocalNames)
+Last session: 2026-02-23
+Stopped at: Completed 04-01-PLAN.md (ModelContextProtocol package + MCP stdio host Program.cs + HelloDebug TEST-01 confirmed)
 Resume file: None
