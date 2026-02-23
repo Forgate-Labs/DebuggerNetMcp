@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Phase 4 - MCP Server
+**Current focus:** Phase 5 - Integration Tests
 
 ## Current Position
 
-Phase: 4 of 5 (MCP Server)
-Plan: 1 of 2 in current phase — COMPLETE
+Phase: 4 of 5 (MCP Server) — COMPLETE
+Plan: 2 of 2 in current phase — COMPLETE
 Status: In Progress
-Last activity: 2026-02-23 — Completed 04-01 (ModelContextProtocol package + MCP stdio host Program.cs; HelloDebug TEST-01 confirmed)
+Last activity: 2026-02-23 — Completed 04-02 (DebuggerTools.cs — 14 MCP tool methods; full solution builds 0 errors, 0 warnings)
 
-Progress: [█████████░] ~85%
+Progress: [█████████░] ~95%
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [█████████░] ~85%
 | Phase 03-debug-engine P04 | 2min | 2 tasks | 2 files |
 | Phase 03 P05 | 2min | 2 tasks | 4 files |
 | Phase 04-mcp-server P01 | 1min | 2 tasks | 2 files |
+| Phase 04-mcp-server P02 | 2min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 03]: GetStackTraceAsync source location deferred — PdbReader only has forward (source->IL) lookup; reverse IL->source lookup is future work
 - [Phase 04-mcp-server]: Logging routed to stderr (LogToStandardErrorThreshold=Trace) — stdout reserved exclusively for MCP wire protocol JSON-RPC messages
 - [Phase 04-mcp-server]: DebuggerTools forward-declared in WithTools<DebuggerTools>() — type satisfied by Plan 02, project intentionally unbuildable until then
+- [Phase 04-mcp-server]: Microsoft.Extensions.Hosting 10.0.3 added explicitly — was missing as direct dependency; only Abstractions was transitive from ModelContextProtocol
+- [Phase 04-mcp-server]: RunAndWait helper captures ct in lambda — composable async pattern for all 5 execution-control tools with a single WaitForEventAsync call
+- [Phase 04-mcp-server]: debug_status reads _state field directly without calling DotnetDebugger — zero-latency state query, no COM thread dispatch
 
 ### Pending Todos
 
@@ -94,5 +98,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 04-01-PLAN.md (ModelContextProtocol package + MCP stdio host Program.cs + HelloDebug TEST-01 confirmed)
+Stopped at: Completed 04-02-PLAN.md (DebuggerTools.cs — 14 MCP tool methods; full solution builds 0 errors)
 Resume file: None

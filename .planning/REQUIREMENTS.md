@@ -37,7 +37,7 @@
 ### MCP Server (C#)
 
 - [x] **MCP-01**: Program.cs com MCP server via stdio usando NuGet ModelContextProtocol, DI com DotnetDebugger singleton
-- [ ] **MCP-02**: DebuggerTools.cs — 14 tools com [McpServerTool] e [Description] em inglês: debug_launch, debug_attach, debug_set_breakpoint, debug_remove_breakpoint, debug_continue, debug_step_over, debug_step_into, debug_step_out, debug_variables, debug_evaluate, debug_stacktrace, debug_pause, debug_disconnect, debug_status
+- [x] **MCP-02**: DebuggerTools.cs — 14 tools com [McpServerTool] e [Description] em inglês: debug_launch, debug_attach, debug_set_breakpoint, debug_remove_breakpoint, debug_continue, debug_step_over, debug_step_into, debug_step_out, debug_variables, debug_evaluate, debug_stacktrace, debug_pause, debug_disconnect, debug_status
 
 ### Tests
 
@@ -92,7 +92,7 @@
 | ENGINE-07 | Phase 3 | Complete |
 | ENGINE-08 | Phase 3 | Complete |
 | MCP-01 | Phase 4 | Complete |
-| MCP-02 | Phase 4 | Pending |
+| MCP-02 | Phase 4 | Complete |
 | TEST-01 | Phase 4 | Complete |
 | TEST-02 | Phase 5 | Pending |
 | TEST-03 | Phase 5 | Pending |
