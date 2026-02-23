@@ -8,7 +8,7 @@ using DebuggerNetMcp.Core.Engine;
 public sealed class DebuggerTools(DotnetDebugger debugger)
 {
     private string _state = "idle";  // idle | running | stopped | exited
-    private const string ServerVersion = "0.7.3";
+    private const string ServerVersion = "0.7.4";
 
     // -----------------------------------------------------------------------
     // Private helpers
@@ -24,26 +24,31 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         _                    => new { type = "unknown" }
     };
 
-    private static readonly TimeSpan DefaultEventTimeout = TimeSpan.FromSeconds(30);
+    // All tool calls are capped at 2 minutes — no tool should ever block the LLM forever.
+    private static readonly TimeSpan ToolTimeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>Creates a CancellationTokenSource linked to ct with a 2-minute hard cap.</summary>
+    private static CancellationTokenSource CreateToolCts(CancellationToken ct)
+    {
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(ToolTimeout);
+        return cts;
+    }
 
     private async Task<string> RunAndWait(Func<Task> operation, CancellationToken ct)
     {
-        // Apply a default timeout so the caller (LLM tool call) never hangs forever.
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(DefaultEventTimeout);
-
+        using var cts = CreateToolCts(ct);
         try
         {
             await operation();
             _state = "running";
-            var ev = await debugger.WaitForEventAsync(timeoutCts.Token);
+            var ev = await debugger.WaitForEventAsync(cts.Token);
             _state = ev is ExitedEvent ? "exited" : "stopped";
             return JsonSerializer.Serialize(new { success = true, state = _state, @event = SerializeEvent(ev) });
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            // Timeout (not external cancellation)
-            return JsonSerializer.Serialize(new { success = false, error = "Timed out waiting for debug event (30 s). Process may still be running." });
+            return JsonSerializer.Serialize(new { success = false, error = "Timed out waiting for debug event (2 min). Process may still be running." });
         }
         catch (Exception ex)
         {
@@ -69,9 +74,10 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         bool firstChanceExceptions = false,
         CancellationToken ct = default)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
-            await debugger.LaunchAsync(projectPath, appDllPath, firstChanceExceptions, ct);
+            await debugger.LaunchAsync(projectPath, appDllPath, firstChanceExceptions, cts.Token);
             // LaunchAsync waits for the CreateProcess stopping event, so the process is suspended.
             // The caller should set breakpoints and then call debug_continue.
             _state = "stopped";
@@ -92,9 +98,10 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         [Description("The process ID to attach to")] uint processId,
         CancellationToken ct)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
-            var (confirmedPid, processName) = await debugger.AttachAsync(processId, ct);
+            var (confirmedPid, processName) = await debugger.AttachAsync(processId, cts.Token);
             _state = "running";
             return JsonSerializer.Serialize(new
             {
@@ -114,9 +121,10 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
      Description("Disconnect from the debuggee and end the debug session.")]
     public async Task<string> Disconnect(CancellationToken ct)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
-            await debugger.DisconnectAsync(ct);
+            await debugger.DisconnectAsync(cts.Token);
             _state = "idle";
             return JsonSerializer.Serialize(new { success = true, state = _state });
         }
@@ -143,9 +151,10 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         [Description("1-based source line number")] int line,
         CancellationToken ct)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
-            var id = await debugger.SetBreakpointAsync(dllPath, sourceFile, line, ct);
+            var id = await debugger.SetBreakpointAsync(dllPath, sourceFile, line, cts.Token);
             return JsonSerializer.Serialize(new { success = true, id, file = sourceFile, line });
         }
         catch (Exception ex)
@@ -160,9 +169,10 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         [Description("Breakpoint ID returned by debug_set_breakpoint")] int breakpointId,
         CancellationToken ct)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
-            await debugger.RemoveBreakpointAsync(breakpointId, ct);
+            await debugger.RemoveBreakpointAsync(breakpointId, cts.Token);
             return JsonSerializer.Serialize(new { success = true, id = breakpointId });
         }
         catch (Exception ex)
@@ -210,9 +220,10 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         [Description("Thread ID to inspect. 0 or omitted = use the current stopped thread.")] uint thread_id = 0,
         CancellationToken ct = default)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
-            var locals = await debugger.GetLocalsAsync(thread_id, ct);
+            var locals = await debugger.GetLocalsAsync(thread_id, cts.Token);
             return JsonSerializer.Serialize(locals);
         }
         catch (Exception ex)
@@ -230,16 +241,17 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         [Description("Thread ID to get stack for. 0 or omitted = return all active threads.")] uint thread_id = 0,
         CancellationToken ct = default)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
             if (thread_id != 0)
             {
-                var frames = await debugger.GetStackTraceAsync(thread_id, ct);
+                var frames = await debugger.GetStackTraceAsync(thread_id, cts.Token);
                 return JsonSerializer.Serialize(new { thread_id, frames });
             }
             else
             {
-                var allThreads = await debugger.GetAllThreadStackTracesAsync(ct);
+                var allThreads = await debugger.GetAllThreadStackTracesAsync(cts.Token);
                 var threads = allThreads.Select(t => new { threadId = t.ThreadId, frames = t.Frames }).ToList();
                 return JsonSerializer.Serialize(new { threads });
             }
@@ -259,9 +271,10 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         [Description("Variable name or simple expression to evaluate")] string expression,
         CancellationToken ct)
     {
+        using var cts = CreateToolCts(ct);
         try
         {
-            var result = await debugger.EvaluateAsync(expression, ct);
+            var result = await debugger.EvaluateAsync(expression, cts.Token);
             return JsonSerializer.Serialize(result);
         }
         catch (Exception ex)
