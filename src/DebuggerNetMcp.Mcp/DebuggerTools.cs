@@ -83,16 +83,25 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
     }
 
     [McpServerTool(Name = "debug_attach"),
-     Description("Attach the debugger to a running .NET process by process ID.")]
+     Description("Attach the debugger to a running .NET process by process ID. " +
+                 "Returns state='attached' with the confirmed pid and process name once " +
+                 "the runtime connection is established. The process continues running; " +
+                 "use debug_pause to stop it for inspection.")]
     public async Task<string> Attach(
         [Description("The process ID to attach to")] uint processId,
         CancellationToken ct)
     {
         try
         {
-            await debugger.AttachAsync(processId, ct);
+            var (confirmedPid, processName) = await debugger.AttachAsync(processId, ct);
             _state = "running";
-            return JsonSerializer.Serialize(new { success = true, state = _state, pid = processId });
+            return JsonSerializer.Serialize(new
+            {
+                success = true,
+                state = "attached",
+                pid = confirmedPid,
+                processName
+            });
         }
         catch (Exception ex)
         {

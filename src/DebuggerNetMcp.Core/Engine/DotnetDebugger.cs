@@ -146,25 +146,53 @@ public sealed class DotnetDebugger : IAsyncDisposable
     }
 
     /// <summary>
-    /// Attaches to a running .NET process by PID.
+    /// Attaches to a running .NET process by PID. Waits for the CreateProcess callback to confirm
+    /// the attach succeeded and _process is set before returning.
+    /// Returns (Pid, ProcessName) — process continues running (not stopped) after attach.
     /// </summary>
-    public async Task AttachAsync(uint processId, CancellationToken ct = default)
+    public async Task<(uint Pid, string ProcessName)> AttachAsync(
+        uint processId, CancellationToken ct = default)
     {
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var attachConfirmedTcs = new TaskCompletionSource<uint>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // Set OnProcessCreated BEFORE dispatching — the callback fires on the ICorDebug thread
+        // and may complete very quickly (race condition if set after dispatch).
+        // Also set _process here (same as default constructor handler) so subsequent API calls work.
+        _callbackHandler.OnProcessCreated = proc =>
+        {
+            _process = proc;
+            proc.GetID(out uint pid);
+            attachConfirmedTcs.TrySetResult(pid);
+        };
+
         await DispatchAsync(() =>
         {
             try
             {
                 AttachToProcess(processId);
-                tcs.SetResult();
             }
             catch (Exception ex)
             {
-                tcs.SetException(ex);
+                attachConfirmedTcs.TrySetException(ex);
             }
         }, ct);
 
-        await tcs.Task.WaitAsync(ct);
+        // Wait for the CreateProcess callback to fire — confirms _process is set
+        uint confirmedPid = await attachConfirmedTcs.Task.WaitAsync(ct);
+
+        // Read process name outside the debug thread (safe: just reading OS process table)
+        string processName;
+        try
+        {
+            processName = System.Diagnostics.Process.GetProcessById((int)confirmedPid).ProcessName;
+        }
+        catch
+        {
+            processName = "unknown";
+        }
+
+        return (confirmedPid, processName);
     }
 
     /// <summary>
