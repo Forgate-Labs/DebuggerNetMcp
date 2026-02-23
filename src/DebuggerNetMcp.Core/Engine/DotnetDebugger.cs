@@ -222,6 +222,18 @@ public sealed class DotnetDebugger : IAsyncDisposable
     {
         await DisconnectAsync(ct);
 
+        // Always recreate the event channel for the new session (same as LaunchAsync).
+        _eventChannel = Channel.CreateUnbounded<DebugEvent>(new UnboundedChannelOptions
+        {
+            SingleWriter = true,
+            SingleReader = false,
+            AllowSynchronousContinuations = false
+        });
+        _callbackHandler.UpdateEventWriter(_eventChannel.Writer);
+
+        // Stop at CreateProcess so the caller can set breakpoints before test execution begins.
+        _callbackHandler.StopAtCreateProcess = true;
+
         // Step 1: dotnet build -c Debug
         var buildPsi = new System.Diagnostics.ProcessStartInfo("dotnet",
             $"build \"{projectPath}\" -c Debug")
@@ -284,7 +296,15 @@ public sealed class DotnetDebugger : IAsyncDisposable
         }
 
         // Step 4: Attach to testhost — reuses all existing attach infrastructure
-        return await AttachAsync(testhostPid, ct);
+        var (pid, processName) = await AttachAsync(testhostPid, ct);
+
+        // Wait for the CreateProcess stopping event — same pattern as LaunchAsync.
+        // Process is now suspended; caller must set breakpoints then call ContinueAsync.
+        var startupEvent = await WaitForEventAsync(ct);
+        if (startupEvent is ExceptionEvent exc)
+            throw new InvalidOperationException($"{exc.ExceptionType}: {exc.Message}");
+
+        return (pid, processName);
     }
 
     /// <summary>

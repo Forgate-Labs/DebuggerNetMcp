@@ -8,7 +8,7 @@ using DebuggerNetMcp.Core.Engine;
 public sealed class DebuggerTools(DotnetDebugger debugger)
 {
     private string _state = "idle";  // idle | running | stopped | exited
-    private const string ServerVersion = "0.9.0";
+    private const string ServerVersion = "0.9.1";
 
     // -----------------------------------------------------------------------
     // Private helpers
@@ -132,14 +132,14 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         try
         {
             var (pid, processName) = await debugger.LaunchTestAsync(projectPath, filter, cts.Token);
-            _state = "running";
+            _state = "stopped";
             return JsonSerializer.Serialize(new
             {
                 success = true,
-                state = "attached",
+                state = "stopped",
                 pid,
                 processName,
-                note = "testhost attached — set breakpoints then call debug_continue"
+                note = "testhost stopped at process creation — set breakpoints then call debug_continue"
             });
         }
         catch (Exception ex)
