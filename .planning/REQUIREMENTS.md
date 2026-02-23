@@ -84,8 +84,8 @@
 
 ### dotnet test (DTEST)
 
-- [ ] **DTEST-01**: debug_launch aceita projeto xUnit e lança `dotnet test` em modo debug — processo para no CreateProcess
-- [ ] **DTEST-02**: Breakpoints dentro de métodos de teste xUnit ([Fact], [Theory]) são atingidos e variáveis inspecionáveis
+- [x] **DTEST-01**: debug_launch aceita projeto xUnit e lança `dotnet test` em modo debug — processo para no CreateProcess
+- [x] **DTEST-02**: Breakpoints dentro de métodos de teste xUnit ([Fact], [Theory]) são atingidos e variáveis inspecionáveis
 
 ### Testes de Integração (TEST)
 
@@ -149,8 +149,8 @@
 | ATCH-01 | Phase 7 | Complete |
 | STKT-01 | Phase 8 | Complete |
 | STKT-02 | Phase 8 | Complete |
-| DTEST-01 | Phase 8 | Pending |
-| DTEST-02 | Phase 8 | Pending |
+| DTEST-01 | Phase 8 | Complete |
+| DTEST-02 | Phase 8 | Complete |
 | TEST-02 | Phase 9 | Pending |
 | TEST-03 | Phase 9 | Pending |
 | TEST-09 | Phase 9 | Pending |

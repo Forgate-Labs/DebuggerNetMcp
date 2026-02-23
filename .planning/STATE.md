@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 8 of 9 (Stack Trace & dotnet test) — IN PROGRESS
-Plan: 1 of 2 complete
-Status: Phase 8 plan 01 complete — PdbReader.ReverseLookup + GetStackFramesForThread source locations; ServerVersion 0.8.0
-Last activity: 2026-02-23 — 08-01 stack trace source locations: ReverseLookup(nearest SP) + method name resolution
+Phase: 8 of 9 (Stack Trace & dotnet test) — COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 8 complete — LaunchTestAsync + debug_launch_test MCP tool + MathTests xUnit class; ServerVersion 0.9.0
+Last activity: 2026-02-23 — 08-02 debug_launch_test: VSTEST_HOST_DEBUG=1 attach pattern + xUnit breakpoint test
 
-Progress: [███████░░░] 78% (7/9 phases complete; phase 8 plan 1/2 done)
+Progress: [████████░░] 83% (8/9 phases complete; phase 8 all plans done)
 
 ## Performance Metrics
 
@@ -38,6 +38,7 @@ Progress: [███████░░░] 78% (7/9 phases complete; phase 8 pla
 | Phase 07-exceptions-threading-attach P02 | 3 | 2 tasks | 2 files |
 | Phase 07-exceptions-threading-attach P03 | 8 | 2 tasks | 3 files |
 | Phase 08-stack-trace-and-dotnet-test P01 | 2 | 2 tasks | 3 files |
+| Phase 08-stack-trace-and-dotnet-test P02 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -77,15 +78,17 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 07-exceptions-threading-attach]: attachConfirmedTcs: set OnProcessCreated before dispatch to avoid race; handler sets _process + resolves TCS with confirmed PID
 - [Phase 08-stack-trace-and-dotnet-test]: PdbReader.ReverseLookup: nearest-sequence-point semantics (last SP with Offset <= ilOffset); break optimization valid per Portable PDB spec ascending-offset guarantee
 - [Phase 08-stack-trace-and-dotnet-test]: GetStackFramesForThread PDB resolution: always try/catch — framework frames (CoreLib) have no PDB and must not crash; display uses Path.GetFileName() for compact output
+- [Phase 08-stack-trace-and-dotnet-test-02]: LaunchTestAsync reuses AttachAsync directly — VSTEST_HOST_DEBUG=1 + parse "Process Id: NNN" from stdout; _dotnetTestProcess tracks vstest runner for cleanup on DisconnectAsync
+- [Phase 08-stack-trace-and-dotnet-test-02]: ServerVersion 0.9.0 — debug_launch_test feature addition
 
 ### Blockers/Concerns
 
 - Computed properties: RESOLVED (Phase 06-02) — PE property scan adds <computed> entries
 - Circular references: RESOLVED (Phase 06-01/06-02) — HashSet<ulong> visited guards against cyclic graphs
-- dotnet test: process model differs from launch — CreateProcess timing may vary
+- dotnet test: process model differs from launch — RESOLVED (Phase 08-02) via VSTEST_HOST_DEBUG=1 + AttachAsync pattern
 
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Checkpoint 07-03 — tasks 1+2 committed (b1e9f93, 9a89c0f); awaiting human verification of all 6 Phase 7 requirements
+Stopped at: Completed 08-02-PLAN.md — debug_launch_test + MathTests xUnit class; Phase 8 all plans done
 Resume file: None
