@@ -69,9 +69,9 @@
 
 ### Multi-threading (THRD)
 
-- [ ] **THRD-01**: debug_variables retorna variáveis do thread correto quando múltiplos threads existem
-- [ ] **THRD-02**: debug_stacktrace retorna stack de todos os threads ativos (ou thread especificado por ID)
-- [ ] **THRD-03**: debug_pause interrompe todos os threads do processo (não apenas o thread principal)
+- [x] **THRD-01**: debug_variables retorna variáveis do thread correto quando múltiplos threads existem
+- [x] **THRD-02**: debug_stacktrace retorna stack de todos os threads ativos (ou thread especificado por ID)
+- [x] **THRD-03**: debug_pause interrompe todos os threads do processo (não apenas o thread principal)
 
 ### Process Attach (ATCH)
 
@@ -143,9 +143,9 @@
 | TEST-08 | Phase 6 | Complete |
 | EXCP-01 | Phase 7 | Complete |
 | EXCP-02 | Phase 7 | Complete |
-| THRD-01 | Phase 7 | Pending |
-| THRD-02 | Phase 7 | Pending |
-| THRD-03 | Phase 7 | Pending |
+| THRD-01 | Phase 7 | Complete |
+| THRD-02 | Phase 7 | Complete |
+| THRD-03 | Phase 7 | Complete |
 | ATCH-01 | Phase 7 | Pending |
 | STKT-01 | Phase 8 | Pending |
 | STKT-02 | Phase 8 | Pending |

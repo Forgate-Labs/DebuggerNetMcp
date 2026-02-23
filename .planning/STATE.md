@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 7 of 9 (Exceptions, Threading & Attach) — IN PROGRESS
-Plan: 1 of 3 complete
-Status: Phase 7 plan 01 complete — exception events carry real type/message; first-chance opt-in added
-Last activity: 2026-02-23 — 07-01 TryReadExceptionInfo + double-reporting guard + firstChanceExceptions param
+Plan: 2 of 3 complete
+Status: Phase 7 plan 02 complete — optional thread_id on debug_variables/debug_stacktrace; GetAllThreads + GetAllThreadStackTracesAsync added
+Last activity: 2026-02-23 — 07-02 multi-thread inspection: GetAllThreads celt=1 loop, per-thread locals/stacktrace
 
 Progress: [██████░░░░] 67% (6/9 phases complete; phase 7 in progress)
 
@@ -35,6 +35,7 @@ Progress: [██████░░░░] 67% (6/9 phases complete; phase 7 in 
 | Phase 05-type-system P03 | 10 | 2 tasks | 1 files |
 | Phase 06-closures-iterators-object-graph P01 | 15 | 2 tasks | 2 files |
 | Phase 06-closures-iterators-object-graph P02 | 4 | 2 tasks | 1 file |
+| Phase 07-exceptions-threading-attach P02 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 07-01]: TryReadExceptionInfo reads real exception type/message via GetCurrentException + PE metadata + _message field walk
 - [Phase 07-01]: GetTypeName, GetModulePath, ReadInstanceFieldsFromPE, GetBaseTypeToken changed to internal static in VariableReader (reused from ManagedCallbackHandler)
 - [Phase 07-01]: First-chance exceptions opt-in via debug_launch firstChanceExceptions=true; default false to avoid noise
+- [Phase 07-exceptions-threading-attach]: GetAllThreads uses celt=1 loop — same pattern as chain/frame enumeration to avoid LPArray COM marshaling issues
+- [Phase 07-exceptions-threading-attach]: thread_id=0 sentinel enables all-threads path in debug_stacktrace, backward-compatible default
+- [Phase 07-exceptions-threading-attach]: GetStackFramesForThread extracted as shared helper reused by GetStackTraceAsync and GetAllThreadStackTracesAsync
 
 ### Blockers/Concerns
 
@@ -78,5 +82,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 07-01-PLAN.md (TryReadExceptionInfo + double-reporting guard + firstChanceExceptions param)
+Stopped at: Completed 07-02-PLAN.md (threading: optional thread_id on debug_variables/debug_stacktrace + GetAllThreads helper)
 Resume file: None
