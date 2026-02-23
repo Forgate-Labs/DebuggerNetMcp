@@ -101,6 +101,48 @@ internal static class PdbReader
     }
 
     /// <summary>
+    /// Reverse-looks up the source file and line number for a given method token and IL offset.
+    /// Finds the nearest sequence point with Offset &lt;= ilOffset (last sequence point before or at ip).
+    /// Returns null if PDB is not available or no matching sequence point is found.
+    /// </summary>
+    /// <param name="dllPath">Absolute path to the compiled .NET assembly (.dll).</param>
+    /// <param name="methodToken">The method's metadata token (e.g., 0x06000001).</param>
+    /// <param name="ilOffset">The current IL instruction pointer offset within the method.</param>
+    /// <returns>A tuple of (sourceFile, line) if found; null otherwise.</returns>
+    public static (string sourceFile, int line)? ReverseLookup(string dllPath, int methodToken, int ilOffset)
+    {
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            using var pdbProvider = OpenPdbProvider(peReader, dllPath);
+            var pdbMetadata = pdbProvider.GetMetadataReader();
+
+            int rowNumber = methodToken & 0x00FFFFFF;
+            var methodHandle = MetadataTokens.MethodDefinitionHandle(rowNumber);
+            var debugHandle = methodHandle.ToDebugInformationHandle();
+            var debugInfo = pdbMetadata.GetMethodDebugInformation(debugHandle);
+
+            // Find last sequence point with Offset <= ilOffset (sequence points are in ascending offset order)
+            SequencePoint? best = null;
+            foreach (var sp in debugInfo.GetSequencePoints())
+            {
+                if (sp.IsHidden) continue;
+                if (sp.Offset <= ilOffset)
+                    best = sp;
+                else
+                    break; // ascending order guaranteed per Portable PDB spec
+            }
+
+            if (best is null) return null;
+
+            var doc = pdbMetadata.GetDocument(best.Value.Document);
+            string docName = pdbMetadata.GetString(doc.Name);
+            return (docName, best.Value.StartLine);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
     /// Returns the method name and a mapping from field token to field name for all
     /// instance fields of the type containing the given method. Used to read async
     /// state machine fields (counter, isActive, etc.) from MoveNext's 'this' argument.
