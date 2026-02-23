@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Runtime.InteropServices.Marshalling;
 using System.Threading.Channels;
 using DebuggerNetMcp.Core.Interop;
@@ -46,6 +47,14 @@ internal sealed partial class ManagedCallbackHandler
     // Used by DotnetDebugger.GetCurrentThread() to call GetThread(id) directly,
     // avoiding ICorDebugThreadEnum.Next() which has LPArray marshaling issues.
     internal uint CurrentStoppedThreadId { get; private set; }
+
+    // All live managed thread IDs, tracked via CreateThread/ExitThread callbacks.
+    // ICorDebugProcess.EnumerateThreads() has COM interop issues on Linux (source-generated wrappers);
+    // tracking via callbacks is the reliable alternative.
+    private readonly HashSet<uint> _knownThreadIds = new();
+    internal IReadOnlyCollection<uint> KnownThreadIds => _knownThreadIds;
+
+    internal void ClearKnownThreadIds() => _knownThreadIds.Clear();
 
     // Controls whether first-chance exceptions produce a stopping ExceptionEvent.
     // Set by DotnetDebugger.LaunchAsync before launching. Default false (continue silently).
@@ -196,10 +205,16 @@ internal sealed partial class ManagedCallbackHandler
     }
 
     public void CreateThread(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread)
-        => pAppDomain.Continue(0);
+    {
+        try { pThread.GetID(out uint tid); _knownThreadIds.Add(tid); } catch { }
+        pAppDomain.Continue(0);
+    }
 
     public void ExitThread(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread)
-        => pAppDomain.Continue(0);
+    {
+        try { pThread.GetID(out uint tid); _knownThreadIds.Remove(tid); } catch { }
+        pAppDomain.Continue(0);
+    }
 
     public void LoadModule(ICorDebugAppDomain pAppDomain, ICorDebugModule pModule)
     {

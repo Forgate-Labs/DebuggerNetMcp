@@ -219,6 +219,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
             _activeBreakpoints.Clear();
             _nextBreakpointId = 1;
             _callbackHandler.NotifyFirstChanceExceptions = false;
+            _callbackHandler.ClearKnownThreadIds();
         }, ct);
     }
 
@@ -692,15 +693,19 @@ public sealed class DotnetDebugger : IAsyncDisposable
     {
         var threads = new List<ICorDebugThread>();
         if (_process is null) return threads;
-        _process.EnumerateThreads(out ICorDebugThreadEnum threadEnum);
-        if (threadEnum is null) return threads;
-        var arr = new ICorDebugThread[1];
-        while (true)
+
+        // ICorDebugProcess.EnumerateThreads has COM interop issues on Linux with source-generated
+        // wrappers (LPArray marshaling). Use KnownThreadIds tracked via CreateThread/ExitThread
+        // callbacks and resolve each ID via GetThread(id) which works reliably.
+        foreach (uint tid in _callbackHandler.KnownThreadIds)
         {
-            threadEnum.Next(1, arr, out uint fetched);
-            if (fetched == 0) break;
-            if (arr[0] is not null)
-                threads.Add(arr[0]);
+            try
+            {
+                _process.GetThread(tid, out ICorDebugThread thread);
+                if (thread is not null)
+                    threads.Add(thread);
+            }
+            catch { /* thread may have exited between callback and here */ }
         }
         return threads;
     }
@@ -798,10 +803,31 @@ public sealed class DotnetDebugger : IAsyncDisposable
             {
                 var result = new List<(uint, IReadOnlyList<StackFrameInfo>)>();
                 var threads = GetAllThreads();
-                // Fallback: if EnumerateThreads returns nothing, include at least the stopped thread
+                // Fallback: if KnownThreadIds is empty (e.g. attached process before callbacks fired),
+                // include at least the current stopped thread (set by last stopping callback).
                 if (threads.Count == 0)
                 {
                     try { threads.Add(GetCurrentThread()); } catch { }
+                }
+                // Second fallback: if still empty (Stop() was called, no callback-tracked thread),
+                // try EnumerateThreads as a last resort despite its COM interop unreliability.
+                if (threads.Count == 0 && _process is not null)
+                {
+                    try
+                    {
+                        _process.EnumerateThreads(out ICorDebugThreadEnum threadEnum);
+                        if (threadEnum is not null)
+                        {
+                            var arr2 = new ICorDebugThread[1];
+                            while (true)
+                            {
+                                threadEnum.Next(1, arr2, out uint f);
+                                if (f == 0 || arr2[0] is null) break;
+                                threads.Add(arr2[0]);
+                            }
+                        }
+                    }
+                    catch { }
                 }
                 foreach (var thread in threads)
                 {
