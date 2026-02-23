@@ -54,8 +54,8 @@
 
 ### Closures e Iterators (CLSR)
 
-- [ ] **CLSR-01**: Debugger exibe variáveis capturadas por lambdas (campos do compiler-generated Display class) com nomes limpos
-- [ ] **CLSR-02**: Debugger pode inspecionar estado de um iterator (yield return) — valor Current e estado interno da state machine
+- [x] **CLSR-01**: Debugger exibe variáveis capturadas por lambdas (campos do compiler-generated Display class) com nomes limpos
+- [x] **CLSR-02**: Debugger pode inspecionar estado de um iterator (yield return) — valor Current e estado interno da state machine
 
 ### Grafo de Objetos (GRAPH)
 
@@ -136,8 +136,8 @@
 | TYPE-02 | Phase 5 | Complete |
 | TYPE-03 | Phase 5 | Complete |
 | TYPE-04 | Phase 5 | Complete |
-| CLSR-01 | Phase 6 | Pending |
-| CLSR-02 | Phase 6 | Pending |
+| CLSR-01 | Phase 6 | Complete |
+| CLSR-02 | Phase 6 | Complete |
 | GRAPH-01 | Phase 6 | Pending |
 | GRAPH-02 | Phase 6 | Pending |
 | TEST-08 | Phase 6 | Pending |
