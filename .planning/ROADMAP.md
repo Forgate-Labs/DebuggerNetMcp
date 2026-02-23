@@ -153,9 +153,13 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. PdbReader.ReverseLookup(methodToken, ilOffset) returns the correct source file path and line number using PDB sequence points
   2. `debug_stacktrace` output includes "sourceFile:line" for every frame where a PDB is available (no raw hex tokens in normal output)
-  3. `debug_launch` with an xUnit project path runs `dotnet test` in debug mode and stops at the CreateProcess event
+  3. `debug_launch_test` with an xUnit project path runs `dotnet test` in debug mode and attaches to the testhost process
   4. A breakpoint set inside a [Fact] test method is hit during `dotnet test` execution and `debug_variables` returns the test's local values
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — PdbReader.ReverseLookup + wire into GetStackFramesForThread for human-readable stack frames (STKT-01, STKT-02)
+- [ ] 08-02-PLAN.md — LaunchTestAsync + debug_launch_test MCP tool + xUnit [Fact] with locals (DTEST-01, DTEST-02)
 
 ### Phase 9: Tests & Documentation
 **Goal**: Automated xUnit integration tests cover all debug scenarios end-to-end; README gives a new contributor everything needed to build, install, and use the server
@@ -179,5 +183,5 @@ Plans:
 | 5. Type System | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 6. Closures, Iterators & Object Graph | 3/3 | Complete   | 2026-02-23 | - |
 | 7. Exceptions, Threading & Attach | 3/3 | Complete   | 2026-02-23 | - |
-| 8. Stack Trace & dotnet test | v1.1 | 0/TBD | Not started | - |
+| 8. Stack Trace & dotnet test | v1.1 | 0/2 | Not started | - |
 | 9. Tests & Documentation | v1.1 | 0/TBD | Not started | - |
