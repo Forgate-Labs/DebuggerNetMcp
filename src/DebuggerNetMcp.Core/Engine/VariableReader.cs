@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using DebuggerNetMcp.Core.Interop;
 
@@ -375,62 +379,70 @@ internal static class VariableReader
 
     private static VariableInfo ReadObjectFields(string name, string typeName, ICorDebugObjectValue objVal, int depth)
     {
-        const int FIELD_BUFFER_SIZE = 256;
-
         try
         {
-            // Get the class and its typedef token
             objVal.GetClass(out ICorDebugClass cls);
             cls.GetToken(out uint typedefToken);
             cls.GetModule(out ICorDebugModule module);
 
-            // Get IMetaDataImportMinimal from the module using its well-known GUID.
-            // [ComImport] interface uses Marshal.GetObjectForIUnknown (classic COM interop path).
-            var iid = new Guid("7DAC8207-D3AE-4C75-9B67-92801A497D44");
-            module.GetMetaDataInterface(in iid, out IntPtr ppMeta);
-            if (ppMeta == IntPtr.Zero)
-                return new VariableInfo(name, typeName, "<no metadata>", Array.Empty<VariableInfo>());
+            // Get DLL path from module (to open PE metadata without COM interop)
+            string dllPath = GetModulePath(module);
+            if (string.IsNullOrEmpty(dllPath))
+                return new VariableInfo(name, typeName, "<no module path>", Array.Empty<VariableInfo>());
 
-#pragma warning disable CA1416  // IMetaDataImportMinimal uses [ComImport] — GetObjectForIUnknown is the correct path
-            var meta = (IMetaDataImportMinimal)Marshal.GetObjectForIUnknown(ppMeta);
-#pragma warning restore CA1416
-            Marshal.Release(ppMeta);  // RCW now holds the reference
-
-            // Enumerate fields
             var children = new List<VariableInfo>();
-            IntPtr hEnum = IntPtr.Zero;
 
-            try
+            // Walk the inheritance chain: collect fields from the concrete type and all base types
+            // in the same module (base types in other modules are skipped — BCL internals).
+            uint currentToken = typedefToken;
+            while (currentToken != 0)
             {
-                var fieldTokens = new uint[32];
-                while (true)
-                {
-                    meta.EnumFields(ref hEnum, typedefToken, fieldTokens, (uint)fieldTokens.Length, out uint fetched);
-                    if (fetched == 0)
-                        break;
+                var fieldMap = ReadInstanceFieldsFromPE(dllPath, currentToken);
 
-                    for (uint i = 0; i < fetched; i++)
+                // Get the ICorDebugClass for this level to pass to GetFieldValue
+                ICorDebugClass? levelClass = null;
+                try { module.GetClassFromToken(currentToken, out levelClass); }
+                catch { /* not in this module or unavailable */ }
+
+                if (levelClass != null)
+                {
+                    foreach (var (fieldToken, fieldName) in fieldMap)
                     {
-                        uint fieldToken = fieldTokens[i];
+                        // Determine display name for this field:
+                        // - "<>..." prefix → compiler infrastructure — skip
+                        // - "<Name>k__BackingField" / "<field>N__M" → display extracted name
+                        // - other names → display as-is
+                        string displayName;
+                        if (fieldName.StartsWith("<>"))
+                            continue;
+                        else if (fieldName.StartsWith("<"))
+                        {
+                            int closeAngle = fieldName.IndexOf('>');
+                            if (closeAngle > 1)
+                                displayName = fieldName.Substring(1, closeAngle - 1);
+                            else
+                                continue;
+                        }
+                        else
+                        {
+                            displayName = fieldName;
+                        }
+
                         try
                         {
-                            // Get field name via native buffer (IntPtr-based API)
-                            string fieldName = GetFieldName(meta, fieldToken, FIELD_BUFFER_SIZE);
-
-                            // Get field value and recurse
-                            objVal.GetFieldValue(cls, fieldToken, out ICorDebugValue fieldVal);
-                            children.Add(ReadValue(fieldName, fieldVal, depth + 1));
+                            objVal.GetFieldValue(levelClass, fieldToken, out ICorDebugValue fieldVal);
+                            children.Add(ReadValue(displayName, fieldVal, depth + 1));
                         }
-                        catch { /* skip unreadable fields */ }
+                        catch { /* field not available at this point */ }
                     }
                 }
-            }
-            finally
-            {
-                meta.CloseEnum(hEnum);
+
+                // Advance to base type (TypeDefinitionHandle only — cross-module refs not followed)
+                currentToken = GetBaseTypeToken(dllPath, currentToken);
             }
 
-            return new VariableInfo(name, typeName, $"{{fields: {children.Count}}}", children);
+            string displayTypeName = GetTypeName(dllPath, typedefToken);
+            return new VariableInfo(name, displayTypeName, $"{{fields: {children.Count}}}", children);
         }
         catch (Exception ex)
         {
@@ -438,30 +450,89 @@ internal static class VariableReader
         }
     }
 
-    private static string GetFieldName(IMetaDataImportMinimal meta, uint fieldToken, int bufferSize)
+    /// <summary>Returns the module file path from an ICorDebugModule.</summary>
+    private static string GetModulePath(ICorDebugModule module)
     {
-        IntPtr nameBuffer = Marshal.AllocHGlobal(bufferSize * 2);  // Unicode chars (2 bytes each)
+        uint nameLen = 512;
+        IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
         try
         {
-            meta.GetFieldProps(fieldToken,
-                out _,           // pClass
-                nameBuffer,      // szField
-                (uint)bufferSize,
-                out uint pchField,
-                out _,           // pdwAttr
-                out _,           // ppvSigBlob
-                out _,           // pcbSigBlob
-                out _,           // pdwCPlusTypeFlag
-                out _,           // ppValue
-                out _);          // pcchValue
+            module.GetName(nameLen, out _, namePtr);
+            return Marshal.PtrToStringUni(namePtr) ?? string.Empty;
+        }
+        catch { return string.Empty; }
+        finally { Marshal.FreeHGlobal(namePtr); }
+    }
 
-            // pchField includes the null terminator — subtract 1 for the string length
-            int len = (int)pchField > 0 ? (int)pchField - 1 : 0;
-            return Marshal.PtrToStringUni(nameBuffer, len) ?? $"<field_{fieldToken:X8}>";
-        }
-        finally
+    /// <summary>
+    /// Returns the TypeDef token of the base type of <paramref name="typedefToken"/>
+    /// in the same assembly. Returns 0 if the base is in another assembly or is System.Object.
+    /// </summary>
+    private static uint GetBaseTypeToken(string dllPath, uint typedefToken)
+    {
+        try
         {
-            Marshal.FreeHGlobal(nameBuffer);
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            int rowNumber = (int)(typedefToken & 0x00FFFFFF);
+            var typeHandle = MetadataTokens.TypeDefinitionHandle(rowNumber);
+            var typeDef = metadata.GetTypeDefinition(typeHandle);
+            var baseTypeHandle = typeDef.BaseType;
+            if (baseTypeHandle.IsNil) return 0;
+            if (baseTypeHandle.Kind == HandleKind.TypeDefinition)
+            {
+                // Base type is in the same assembly
+                var baseTypeDef = metadata.GetTypeDefinition((TypeDefinitionHandle)baseTypeHandle);
+                string baseTypeName = metadata.GetString(baseTypeDef.Name);
+                // Stop at System.Object — it has no useful fields
+                if (baseTypeName == "Object") return 0;
+                return (uint)MetadataTokens.GetToken(baseTypeHandle);
+            }
+            // TypeReference (cross-assembly) — not followed
+            return 0;
         }
+        catch { return 0; }
+    }
+
+    /// <summary>
+    /// Reads all instance field tokens and names from PE metadata for a given TypeDef.
+    /// Uses System.Reflection.Metadata — no COM interop required.
+    /// </summary>
+    private static Dictionary<uint, string> ReadInstanceFieldsFromPE(string dllPath, uint typedefToken)
+    {
+        var result = new Dictionary<uint, string>();
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            int rowNumber = (int)(typedefToken & 0x00FFFFFF);
+            var typeHandle = MetadataTokens.TypeDefinitionHandle(rowNumber);
+            var typeDef = metadata.GetTypeDefinition(typeHandle);
+            foreach (var fieldHandle in typeDef.GetFields())
+            {
+                var field = metadata.GetFieldDefinition(fieldHandle);
+                if ((field.Attributes & System.Reflection.FieldAttributes.Static) != 0) continue;
+                uint fieldToken = (uint)MetadataTokens.GetToken(fieldHandle);
+                string fieldName = metadata.GetString(field.Name);
+                result[fieldToken] = fieldName;
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    /// <summary>Returns the simple type name (e.g. "List`1", "Person") from PE metadata.</summary>
+    private static string GetTypeName(string dllPath, uint typedefToken)
+    {
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            int rowNumber = (int)(typedefToken & 0x00FFFFFF);
+            var typeHandle = MetadataTokens.TypeDefinitionHandle(rowNumber);
+            var typeDef = metadata.GetTypeDefinition(typeHandle);
+            return metadata.GetString(typeDef.Name);
+        }
+        catch { return "object"; }
     }
 }

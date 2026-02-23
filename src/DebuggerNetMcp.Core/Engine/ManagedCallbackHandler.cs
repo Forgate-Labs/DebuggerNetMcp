@@ -20,7 +20,7 @@ namespace DebuggerNetMcp.Core.Engine;
 internal sealed partial class ManagedCallbackHandler
     : ICorDebugManagedCallback, ICorDebugManagedCallback2
 {
-    private readonly ChannelWriter<DebugEvent> _events;
+    private ChannelWriter<DebugEvent> _events;
 
     // Set from CreateProcess callback; used by DotnetDebugger for ICorDebugProcess access
     internal ICorDebugProcess? Process { get; private set; }
@@ -44,6 +44,15 @@ internal sealed partial class ManagedCallbackHandler
     internal uint CurrentStoppedThreadId { get; private set; }
 
     public ManagedCallbackHandler(ChannelWriter<DebugEvent> events)
+    {
+        _events = events;
+    }
+
+    /// <summary>
+    /// Replaces the event writer with a fresh channel writer for a new debug session.
+    /// Called by DotnetDebugger when relaunching after a previous session completed.
+    /// </summary>
+    internal void UpdateEventWriter(ChannelWriter<DebugEvent> events)
     {
         _events = events;
     }

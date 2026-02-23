@@ -23,7 +23,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
     // Infrastructure
     // -----------------------------------------------------------------------
 
-    private readonly Channel<DebugEvent> _eventChannel;
+    private Channel<DebugEvent> _eventChannel;
     private readonly Channel<Action> _commandChannel;
     private readonly ManagedCallbackHandler _callbackHandler;
     private readonly Thread _debugThread;
@@ -91,6 +91,19 @@ public sealed class DotnetDebugger : IAsyncDisposable
     public async Task LaunchAsync(string projectPath, string appDllPath,
         CancellationToken ct = default)
     {
+        // Reset the event channel if a previous session completed it (ExitProcess calls TryComplete).
+        // Must happen before Step 1 so module-load and other events from the new session are captured.
+        if (_eventChannel.Reader.Completion.IsCompleted)
+        {
+            _eventChannel = Channel.CreateUnbounded<DebugEvent>(new UnboundedChannelOptions
+            {
+                SingleWriter = true,
+                SingleReader = false,
+                AllowSynchronousContinuations = false
+            });
+            _callbackHandler.UpdateEventWriter(_eventChannel.Writer);
+        }
+
         // Step 1: dotnet build -c Debug
         await BuildProjectAsync(projectPath, ct);
 
