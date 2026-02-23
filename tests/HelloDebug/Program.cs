@@ -78,6 +78,36 @@ Console.WriteLine($"[8] Async result: {asyncResult}");
 var node = new Node(1, new Node(2, new Node(3, null)));
 Console.WriteLine($"[9] Linked list head={node.Value}, next={node.Next?.Value}, tail={node.Next?.Next?.Value}");  // <── BP-9
 
+// ─── SECTION 13: Struct ──────────────────────────────────────────────────────
+// BP-13: Breakpoint here. Inspect 'pt' — a struct with X and Y fields.
+// Expected: type="Point", X=3, Y=4 as children.
+var pt = new Point(3, 4);
+double dist = pt.Distance();
+Console.WriteLine($"[13] Struct: Point({pt.X},{pt.Y}), distance={dist:F2}");  // <── BP-13
+
+// ─── SECTION 14: Enum ────────────────────────────────────────────────────────
+// BP-14: Breakpoint here. Inspect 'day', 'season', and 'priority'.
+// Expected: day="DayOfWeek.Wednesday", season="Season.Summer", priority="Priority.High"
+var day = DayOfWeek.Wednesday;    // System enum
+var season = Season.Summer;       // User-defined enum
+var priority = Priority.High;     // Underlying int = 2
+Console.WriteLine($"[14] Enum: day={day}, season={season}, priority={priority}");  // <── BP-14
+
+// ─── SECTION 15: Nullable ────────────────────────────────────────────────────
+// BP-15: Breakpoint here. Inspect 'withValue' and 'withoutValue'.
+// Expected: withValue=42 (unwrapped int), withoutValue="null"
+int? withValue = 42;
+int? withoutValue = null;
+double? withDouble = 3.14;
+Console.WriteLine($"[15] Nullable: withValue={withValue}, withoutValue={withoutValue is null}");  // <── BP-15
+
+// ─── SECTION 16: Static fields ───────────────────────────────────────────────
+// BP-16: Breakpoint here. Use debug_evaluate("AppConfig.MaxRetries") and
+// debug_evaluate("AppConfig.Version") to read static fields.
+// After mutation: MaxRetries=5, Version="1.0.0"
+AppConfig.MaxRetries = 5;  // mutate to verify we read current value, not compile-time constant
+Console.WriteLine($"[16] Static: MaxRetries={AppConfig.MaxRetries}, Version={AppConfig.Version}");  // <── BP-16
+
 Console.WriteLine("[HelloDebug] Session complete");
 
 // ─── Helper methods ──────────────────────────────────────────────────────────
@@ -110,4 +140,23 @@ class Node
     public int Value { get; }
     public Node? Next { get; }
     public Node(int value, Node? next) { Value = value; Next = next; }
+}
+
+// Section 13: struct
+struct Point(int X, int Y)
+{
+    public int X { get; } = X;
+    public int Y { get; } = Y;
+    public double Distance() => Math.Sqrt(X * X + Y * Y);
+}
+
+// Section 14: user enum types
+enum Season { Spring, Summer, Autumn, Winter }
+enum Priority { Low = 1, High = 2, Critical = 3 }
+
+// Section 16: static fields
+static class AppConfig
+{
+    public static int MaxRetries = 3;
+    public static readonly string Version = "1.0.0";
 }
