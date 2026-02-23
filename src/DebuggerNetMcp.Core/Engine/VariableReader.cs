@@ -616,11 +616,27 @@ internal static class VariableReader
             var typeDef = metadata.GetTypeDefinition(typeHandle);
             var baseTypeHandle = typeDef.BaseType;
             if (baseTypeHandle.IsNil) return false;
-            if (baseTypeHandle.Kind != HandleKind.TypeReference) return false;
-            var typeRef = metadata.GetTypeReference((TypeReferenceHandle)baseTypeHandle);
-            string refName = metadata.GetString(typeRef.Name);
-            string refNamespace = metadata.GetString(typeRef.Namespace);
-            return refName == "Enum" && refNamespace == "System";
+
+            // User-defined enums: base type is a TypeReference to System.Enum in another assembly
+            if (baseTypeHandle.Kind == HandleKind.TypeReference)
+            {
+                var typeRef = metadata.GetTypeReference((TypeReferenceHandle)baseTypeHandle);
+                string refName = metadata.GetString(typeRef.Name);
+                string refNamespace = metadata.GetString(typeRef.Namespace);
+                return refName == "Enum" && refNamespace == "System";
+            }
+
+            // BCL enums (e.g. DayOfWeek in System.Private.CoreLib.dll): base type is a
+            // TypeDefinition in the same module because System.Enum is defined there too.
+            if (baseTypeHandle.Kind == HandleKind.TypeDefinition)
+            {
+                var baseDef = metadata.GetTypeDefinition((TypeDefinitionHandle)baseTypeHandle);
+                string baseName = metadata.GetString(baseDef.Name);
+                string baseNs = metadata.GetString(baseDef.Namespace);
+                return baseName == "Enum" && baseNs == "System";
+            }
+
+            return false;
         }
         catch { return false; }
     }
