@@ -74,9 +74,22 @@ internal static class VariableReader
         {
             value.GetType(out elementTypeRaw);
         }
-        catch (Exception ex)
+        catch
         {
-            return new VariableInfo(name, "?", $"<error reading type: {ex.Message}>", Array.Empty<VariableInfo>());
+            // GetType() failed — likely a reference value that needs dereferencing first.
+            // Try treating it as ICorDebugReferenceValue and recurse on the dereferenced value.
+            try
+            {
+                var refFallback = (ICorDebugReferenceValue)value;
+                refFallback.IsNull(out int isNullFb);
+                if (isNullFb != 0) return new VariableInfo(name, "object", "null", Array.Empty<VariableInfo>());
+                refFallback.Dereference(out ICorDebugValue derefFb);
+                return ReadValue(name, derefFb, depth);
+            }
+            catch (Exception innerEx)
+            {
+                return new VariableInfo(name, "?", $"<error reading type: {innerEx.Message}>", Array.Empty<VariableInfo>());
+            }
         }
 
         var elementType = (CorElementType)elementTypeRaw;

@@ -8,9 +8,13 @@ namespace DebuggerNetMcp.Core.Engine;
 /// COM callback sink for all ICorDebug debug events.
 /// Implements ICorDebugManagedCallback (26 methods) and ICorDebugManagedCallback2 (8 methods).
 ///
-/// INVARIANT: Every method in ICorDebugManagedCallback MUST call pAppDomain.Continue(0)
-/// before returning, or the debuggee process will freeze permanently.
-/// ExitProcess is the sole exception — Continue must NOT be called after the process exits.
+/// Thread model: ICorDebug delivers callbacks on its own internal thread.
+/// INVARIANT for informational events (module load, thread create, etc.): MUST call
+/// pAppDomain.Continue(0) before returning or the process freezes.
+/// EXCEPTION — stopping events (Breakpoint, StepComplete, Break): must NOT call Continue;
+/// the process stays stopped so the caller can inspect state. DotnetDebugger.ContinueAsync
+/// calls Continue when the user issues debug_continue / debug_step_*.
+/// ExitProcess: must NOT call Continue (process is gone).
 /// </summary>
 [GeneratedComClass]
 internal sealed partial class ManagedCallbackHandler
@@ -34,6 +38,11 @@ internal sealed partial class ManagedCallbackHandler
     // Key: methodDef token (uint), Value: breakpoint ID assigned by DotnetDebugger.
     internal Dictionary<uint, int> BreakpointTokenToId { get; } = new();
 
+    // Thread ID of the last stopping event (Breakpoint, StepComplete, Break).
+    // Used by DotnetDebugger.GetCurrentThread() to call GetThread(id) directly,
+    // avoiding ICorDebugThreadEnum.Next() which has LPArray marshaling issues.
+    internal uint CurrentStoppedThreadId { get; private set; }
+
     public ManagedCallbackHandler(ChannelWriter<DebugEvent> events)
     {
         _events = events;
@@ -47,61 +56,61 @@ internal sealed partial class ManagedCallbackHandler
     public void Breakpoint(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread,
         ICorDebugBreakpoint pBreakpoint)
     {
-        try
+        // STOPPING event — do NOT call Continue. Process stays stopped so the caller can
+        // inspect locals/stack. DotnetDebugger.ContinueAsync resumes when ready.
+        pThread.GetID(out uint tid);
+        CurrentStoppedThreadId = tid;
+        int bpId = -1;
+        if (pBreakpoint is ICorDebugFunctionBreakpoint fbp)
         {
-            pThread.GetID(out uint tid);
-            int bpId = -1;
-            if (pBreakpoint is ICorDebugFunctionBreakpoint fbp)
+            try
             {
-                // Use the method token as the stable identity key for the breakpoint.
-                // DotnetDebugger stores the same token in BreakpointTokenToId when setting
-                // the breakpoint via ICorDebugFunction.CreateBreakpoint.
-                try
-                {
-                    fbp.GetFunction(out ICorDebugFunction fn);
-                    fn.GetToken(out uint token);
-                    BreakpointTokenToId.TryGetValue(token, out bpId);
-                }
-                catch { /* if token lookup fails, fall through to generic StoppedEvent */ }
+                fbp.GetFunction(out ICorDebugFunction fn);
+                fn.GetToken(out uint token);
+                BreakpointTokenToId.TryGetValue(token, out bpId);
             }
-            var frame = TryGetTopFrame(pThread);
-            _events.TryWrite(bpId >= 0
-                ? new BreakpointHitEvent(bpId, (int)tid, frame ?? new StackFrameInfo(0, "<unknown>", null, null, 0))
-                : new StoppedEvent("breakpoint", (int)tid, frame));
+            catch { }
         }
-        finally { pAppDomain.Continue(0); }
+        var frame = TryGetTopFrame(pThread);
+        _events.TryWrite(bpId >= 0
+            ? new BreakpointHitEvent(bpId, (int)tid, frame ?? new StackFrameInfo(0, "<unknown>", null, null, 0))
+            : new StoppedEvent("breakpoint", (int)tid, frame));
     }
 
     public void StepComplete(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread,
         ICorDebugStepper pStepper, CorDebugStepReason reason)
     {
-        try
-        {
-            pThread.GetID(out uint tid);
-            var frame = TryGetTopFrame(pThread);
-            _events.TryWrite(new StoppedEvent("step", (int)tid, frame));
-        }
-        finally { pAppDomain.Continue(0); }
+        // STOPPING event — do NOT call Continue.
+        pThread.GetID(out uint tid);
+        CurrentStoppedThreadId = tid;
+        var frame = TryGetTopFrame(pThread);
+        _events.TryWrite(new StoppedEvent("step", (int)tid, frame));
     }
 
     public void Break(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread)
     {
-        try
-        {
-            pThread.GetID(out uint tid);
-            _events.TryWrite(new StoppedEvent("pause", (int)tid, null));
-        }
-        finally { pAppDomain.Continue(0); }
+        // STOPPING event — do NOT call Continue.
+        pThread.GetID(out uint tid);
+        CurrentStoppedThreadId = tid;
+        _events.TryWrite(new StoppedEvent("pause", (int)tid, null));
     }
 
     public void Exception(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread, int bUnhandled)
     {
-        try
+        // v1 exception callback. Only stop for unhandled exceptions (bUnhandled != 0).
+        // First-chance exceptions (bUnhandled == 0) are informational — continue silently.
+        // The v2 Exception callback (ICorDebugManagedCallback2) provides richer info and
+        // handles the same cases, so we keep v1 minimal to avoid double-reporting.
+        if (bUnhandled != 0)
         {
-            pThread.GetID(out uint tid);
-            _events.TryWrite(new ExceptionEvent("<unknown>", "<exception>", (int)tid, bUnhandled != 0));
+            // STOPPING event for unhandled — do NOT call Continue
+            try { pThread.GetID(out uint tid); _events.TryWrite(new ExceptionEvent("<unhandled>", "Unhandled exception", (int)tid, true)); }
+            catch { pAppDomain.Continue(0); }
         }
-        finally { pAppDomain.Continue(0); }
+        else
+        {
+            pAppDomain.Continue(0);  // first-chance: continue silently
+        }
     }
 
     public void EvalComplete(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread,
@@ -232,18 +241,17 @@ internal sealed partial class ManagedCallbackHandler
         ICorDebugFrame? pFrame, uint nOffset,
         CorDebugExceptionCallbackType dwEventType, uint dwFlags)
     {
-        try
+        if (dwEventType == CorDebugExceptionCallbackType.DEBUG_EXCEPTION_UNHANDLED)
         {
-            if (dwEventType == CorDebugExceptionCallbackType.DEBUG_EXCEPTION_UNHANDLED ||
-                dwEventType == CorDebugExceptionCallbackType.DEBUG_EXCEPTION_FIRST_CHANCE)
-            {
-                pThread.GetID(out uint tid);
-                bool isUnhandled = dwEventType == CorDebugExceptionCallbackType.DEBUG_EXCEPTION_UNHANDLED;
-                _events.TryWrite(new ExceptionEvent("<exception>", "<exception occurred>",
-                    (int)tid, isUnhandled));
-            }
+            // STOPPING event — do NOT call Continue
+            try { pThread.GetID(out uint tid); _events.TryWrite(new ExceptionEvent("<unhandled>", "Unhandled exception", (int)tid, true)); }
+            catch { pAppDomain.Continue(0); }
         }
-        finally { pAppDomain.Continue(0); }
+        else
+        {
+            // First-chance / catch-handler-found: continue silently
+            pAppDomain.Continue(0);
+        }
     }
 
     public void ExceptionUnwind(ICorDebugAppDomain pAppDomain, ICorDebugThread pThread,

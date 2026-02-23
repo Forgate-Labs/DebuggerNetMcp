@@ -22,15 +22,26 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
         _                    => new { type = "unknown" }
     };
 
+    private static readonly TimeSpan DefaultEventTimeout = TimeSpan.FromSeconds(30);
+
     private async Task<string> RunAndWait(Func<Task> operation, CancellationToken ct)
     {
+        // Apply a default timeout so the caller (LLM tool call) never hangs forever.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(DefaultEventTimeout);
+
         try
         {
             await operation();
             _state = "running";
-            var ev = await debugger.WaitForEventAsync(ct);
+            var ev = await debugger.WaitForEventAsync(timeoutCts.Token);
             _state = ev is ExitedEvent ? "exited" : "stopped";
             return JsonSerializer.Serialize(new { success = true, state = _state, @event = SerializeEvent(ev) });
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Timeout (not external cancellation)
+            return JsonSerializer.Serialize(new { success = false, error = "Timed out waiting for debug event (30 s). Process may still be running." });
         }
         catch (Exception ex)
         {
@@ -188,7 +199,7 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
             var hint = ex.Message.Contains("80131301", StringComparison.OrdinalIgnoreCase)
                 ? " Process not stopped. Call debug_continue or debug_step_* first."
                 : string.Empty;
-            return JsonSerializer.Serialize(new { success = false, error = ex.Message + hint });
+            return JsonSerializer.Serialize(new { success = false, error = ex.Message + hint, detail = ex.ToString() });
         }
     }
 

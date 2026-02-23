@@ -101,6 +101,50 @@ internal static class PdbReader
     }
 
     /// <summary>
+    /// Returns the method name and a mapping from field token to field name for all
+    /// instance fields of the type containing the given method. Used to read async
+    /// state machine fields (counter, isActive, etc.) from MoveNext's 'this' argument.
+    /// Returns method name and an empty dictionary if metadata cannot be read.
+    /// </summary>
+    /// <param name="dllPath">Absolute path to the compiled .NET assembly (.dll).</param>
+    /// <param name="methodToken">The method's metadata token (e.g., 0x06000001).</param>
+    public static (string methodName, Dictionary<uint, string> fields) GetMethodTypeFields(string dllPath, int methodToken)
+    {
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+
+            int rowNumber = methodToken & 0x00FFFFFF;
+            var methodHandle = MetadataTokens.MethodDefinitionHandle(rowNumber);
+            var methodDef = metadata.GetMethodDefinition(methodHandle);
+            string methodName = metadata.GetString(methodDef.Name);
+
+            var fields = new Dictionary<uint, string>();
+            var typeHandle = methodDef.GetDeclaringType();
+            if (typeHandle.IsNil) return (methodName, fields);
+
+            var typeDef = metadata.GetTypeDefinition(typeHandle);
+            foreach (var fieldHandle in typeDef.GetFields())
+            {
+                var field = metadata.GetFieldDefinition(fieldHandle);
+                // Skip static fields
+                if ((field.Attributes & System.Reflection.FieldAttributes.Static) != 0) continue;
+
+                uint fieldToken = (uint)MetadataTokens.GetToken(fieldHandle);
+                string fieldName = metadata.GetString(field.Name);
+                fields[fieldToken] = fieldName;
+            }
+
+            return (methodName, fields);
+        }
+        catch
+        {
+            return ("", new Dictionary<uint, string>());
+        }
+    }
+
+    /// <summary>
     /// Returns a mapping from local variable slot index to name for the given method.
     /// Reads MethodDebugInformation from the PDB and enumerates LocalScope variables.
     /// Returns an empty dictionary if the method is not found or PDB is not available.

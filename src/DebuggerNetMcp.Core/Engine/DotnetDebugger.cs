@@ -30,6 +30,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
 
     private ICorDebug? _corDebug;
     private ICorDebugProcess? _process;
+    private uint _launchedPid;
     private int _nextBreakpointId = 1;
 
     // Pending breakpoints: set before the module loads
@@ -135,6 +136,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
 
     /// <summary>
     /// Stops the debug session and terminates the debuggee if still running.
+    /// Does NOT close the command channel so the debugger can be reused for a new session.
     /// </summary>
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
@@ -146,10 +148,14 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 _process?.Terminate(0);
             }
             catch { /* process may already be gone */ }
+            _process = null;
+            _corDebug = null;
+            _launchedPid = 0;
+            _loadedModules.Clear();
+            _pendingBreakpoints.Clear();
+            _activeBreakpoints.Clear();
+            _nextBreakpointId = 1;
         }, ct);
-
-        // Complete command channel to stop the debug thread
-        _commandChannel.Writer.TryComplete();
     }
 
     /// <summary>
@@ -167,6 +173,8 @@ public sealed class DotnetDebugger : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await DisconnectAsync();
+        // Close the command channel to stop the debug thread
+        _commandChannel.Writer.TryComplete();
         if (_debugThread.IsAlive)
             _debugThread.Join(TimeSpan.FromSeconds(2));
     }
@@ -195,6 +203,13 @@ public sealed class DotnetDebugger : IAsyncDisposable
         if (hr != 0)
             throw new InvalidOperationException($"CreateProcessForLaunch failed: HRESULT 0x{hr:X8}");
 
+        _launchedPid = pid;
+
+        // Use RegisterForRuntimeStartup (bSuspendProcess=false).
+        // RegisterForRuntimeStartup3 with bSuspendProcess=true causes SIGSEGV in netcoredbg's
+        // libdbgshim.so. bSuspendProcess=false works correctly: libdbgshim polls for CLR startup,
+        // and we resume the process immediately after — the race condition is handled by the
+        // strace wrapper around the MCP server binary (kernel 6.12+ fix).
         hr = DbgShimInterop.RegisterForRuntimeStartup(pid, callback, IntPtr.Zero, out _);
         if (hr != 0)
         {
@@ -234,7 +249,22 @@ public sealed class DotnetDebugger : IAsyncDisposable
             .GetOrCreateObjectForComInstance(pCordb, CreateObjectFlags.UniqueInstance);
         _corDebug.Initialize();
         _corDebug.SetManagedHandler(_callbackHandler);
-        // ICorDebugProcess arrives separately via CreateProcess callback
+
+        // Kick off the ICorDebug event loop.
+        // With RegisterForRuntimeStartup (bSuspendProcess=false), the process is already running.
+        // Call DebugActiveProcess to formally register the process with ICorDebug; this queues
+        // the initial CreateProcess / LoadModule / etc. callbacks and returns ICorDebugProcess.
+        // If DebugActiveProcess fails (process already registered), fall through — ICorDebug
+        // will deliver CreateProcess automatically on its internal thread.
+        if (_launchedPid != 0)
+        {
+            try
+            {
+                _corDebug.DebugActiveProcess(_launchedPid, 0, out ICorDebugProcess proc);
+                proc.Continue(0);
+            }
+            catch { /* ignore — ICorDebug may fire events automatically */ }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -516,12 +546,17 @@ public sealed class DotnetDebugger : IAsyncDisposable
     /// </summary>
     private ICorDebugThread GetCurrentThread()
     {
-        _process!.EnumerateThreads(out ICorDebugThreadEnum threadEnum);
-        var threads = new ICorDebugThread[1];
-        threadEnum.Next(1, threads, out uint fetched);
-        if (fetched == 0)
-            throw new InvalidOperationException("No threads found in process");
-        return threads[0];
+        // Use the thread ID captured at the last stopping event (Breakpoint/StepComplete/Break).
+        // This avoids ICorDebugThreadEnum.Next() which has LPArray marshaling issues with
+        // source-generated COM interop ([MarshalAs(LPArray, SizeParamIndex)] for COM interfaces).
+        uint tid = _callbackHandler.CurrentStoppedThreadId;
+        if (tid == 0)
+            throw new InvalidOperationException("No current stopped thread (call debug_continue or debug_step_* first)");
+
+        _process!.GetThread(tid, out ICorDebugThread thread);
+        if (thread is null)
+            throw new InvalidOperationException($"Thread {tid} not found in process");
+        return thread;
     }
 
     // -----------------------------------------------------------------------
@@ -635,7 +670,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 ICorDebugThread thread = GetCurrentThread();
                 thread.GetActiveFrame(out ICorDebugFrame frame);
 
-                if (frame is not ICorDebugILFrame ilFrame)
+                if (frame is null || frame is not ICorDebugILFrame ilFrame)
                 {
                     tcs.SetResult(result);  // native frame — no locals
                     return;
@@ -643,8 +678,10 @@ public sealed class DotnetDebugger : IAsyncDisposable
 
                 // Get the method token and dll path for PDB-based name lookup
                 frame.GetFunction(out ICorDebugFunction fn);
+                if (fn is null) { tcs.SetResult(result); return; }
                 fn.GetToken(out uint methodToken);
                 fn.GetModule(out ICorDebugModule module);
+                if (module is null) { tcs.SetResult(result); return; }
 
                 uint nameLen = 512;
                 IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
@@ -659,30 +696,91 @@ public sealed class DotnetDebugger : IAsyncDisposable
                     Marshal.FreeHGlobal(namePtr);
                 }
 
-                // Get local variable names from PDB (slot index → name)
-                Dictionary<int, string> localNames = new();
-                try
-                {
-                    localNames = PdbReader.GetLocalNames(dllPath, (int)methodToken);
-                }
-                catch { /* PDB not available — use generic names */ }
-
-                // Enumerate locals by index; CORDBG_E_IL_VAR_NOT_AVAILABLE signals end
-                for (uint i = 0; i < 256; i++)
+                // Check if we're in a state machine's MoveNext — if so, read 'this' fields
+                // (C# async variables are stored as fields of the state machine struct, not as IL locals)
+                bool readFromStateMachine = false;
+                var (smMethodName, smTypeFields) = PdbReader.GetMethodTypeFields(dllPath, (int)methodToken);
+                if (smMethodName == "MoveNext" && smTypeFields.Count > 0)
                 {
                     try
                     {
-                        ilFrame.GetLocalVariable(i, out ICorDebugValue val);
-                        string varName = localNames.TryGetValue((int)i, out string? n) ? n : $"local_{i}";
-                        result.Add(VariableReader.ReadValue(varName, val));
+                        // Argument 0 is 'this' — the state machine object/struct reference
+                        ilFrame.GetArgument(0, out ICorDebugValue thisArg);
+                        if (thisArg != null)
+                        {
+                            // Dereference reference types (Class, Object) or ByRef managed pointers
+                            ICorDebugValue actualThis = thisArg;
+                            thisArg.GetType(out uint argTypeRaw);
+                            var argElemType = (CorElementType)argTypeRaw;
+                            if (argElemType == CorElementType.ByRef ||
+                                argElemType == CorElementType.Class ||
+                                argElemType == CorElementType.Object)
+                            {
+                                var refVal = (ICorDebugReferenceValue)thisArg;
+                                refVal.IsNull(out int isNullThis);
+                                if (isNullThis != 0)
+                                    throw new InvalidOperationException("state machine this is null");
+                                refVal.Dereference(out actualThis);
+                            }
+
+                            if (actualThis is ICorDebugObjectValue objVal)
+                            {
+                                objVal.GetClass(out ICorDebugClass cls);
+                                foreach (var (fieldToken, fieldName) in smTypeFields)
+                                {
+                                    // Skip compiler infrastructure fields: <>1__state, <>t__builder, <>u__1 etc.
+                                    if (fieldName.StartsWith("<>")) continue;
+
+                                    // Hoisted user variables are named <OriginalName>N__M (e.g. <counter>5__2).
+                                    // Extract the original name from between < and >.
+                                    string displayName = fieldName;
+                                    if (fieldName.StartsWith("<"))
+                                    {
+                                        int closeAngle = fieldName.IndexOf('>');
+                                        if (closeAngle > 1)
+                                            displayName = fieldName.Substring(1, closeAngle - 1);
+                                        else
+                                            continue;  // malformed name — skip
+                                    }
+
+                                    try
+                                    {
+                                        objVal.GetFieldValue(cls, fieldToken, out ICorDebugValue fieldVal);
+                                        result.Add(VariableReader.ReadValue(displayName, fieldVal));
+                                    }
+                                    catch { /* field not available at this IL offset */ }
+                                }
+                                readFromStateMachine = true;
+                            }
+                        }
                     }
-                    catch (COMException ex) when (ex.HResult == CORDBG_E_IL_VAR_NOT_AVAILABLE)
+                    catch { /* fall through to IL locals */ }
+                }
+
+                if (!readFromStateMachine)
+                {
+                    // Get local variable names from PDB (slot index → name)
+                    Dictionary<int, string> localNames = new();
+                    try { localNames = PdbReader.GetLocalNames(dllPath, (int)methodToken); }
+                    catch { }
+
+                    // Enumerate locals by index; CORDBG_E_IL_VAR_NOT_AVAILABLE signals end
+                    for (uint i = 0; i < 256; i++)
                     {
-                        break;  // No more variables
-                    }
-                    catch
-                    {
-                        break;  // Other errors — stop enumeration
+                        try
+                        {
+                            ilFrame.GetLocalVariable(i, out ICorDebugValue val);
+                            string varName = localNames.TryGetValue((int)i, out string? n) ? n : $"local_{i}";
+                            result.Add(VariableReader.ReadValue(varName, val));
+                        }
+                        catch (COMException ex) when (ex.HResult == CORDBG_E_IL_VAR_NOT_AVAILABLE)
+                        {
+                            break;  // No more variables
+                        }
+                        catch
+                        {
+                            break;  // Other errors — stop enumeration
+                        }
                     }
                 }
 
@@ -735,6 +833,63 @@ public sealed class DotnetDebugger : IAsyncDisposable
                     Marshal.FreeHGlobal(namePtr);
                 }
 
+                // Try state machine field lookup first (for async MoveNext methods)
+                var (smName, smFields) = PdbReader.GetMethodTypeFields(dllPath, (int)methodToken);
+                if (smName == "MoveNext" && smFields.Count > 0)
+                {
+                    // Search for field matching the expression name (handling <varName>N__M hoisted names)
+                    uint? matchedToken = null;
+                    foreach (var (ft, fname) in smFields)
+                    {
+                        if (fname.StartsWith("<>")) continue;
+                        string candidateName = fname;
+                        if (fname.StartsWith("<"))
+                        {
+                            int closeAngle = fname.IndexOf('>');
+                            if (closeAngle > 1) candidateName = fname.Substring(1, closeAngle - 1);
+                            else continue;
+                        }
+                        if (candidateName.Equals(expression, StringComparison.Ordinal)) { matchedToken = ft; break; }
+                    }
+
+                    if (matchedToken.HasValue)
+                    {
+                        try
+                        {
+                            ilFrame.GetArgument(0, out ICorDebugValue thisArg);
+                            ICorDebugValue actualThis = thisArg;
+                            thisArg.GetType(out uint argTypeRaw);
+                            var argEt = (CorElementType)argTypeRaw;
+                            if (argEt == CorElementType.ByRef || argEt == CorElementType.Class || argEt == CorElementType.Object)
+                            {
+                                var refVal = (ICorDebugReferenceValue)thisArg;
+                                refVal.IsNull(out int isNullThis2);
+                                if (isNullThis2 == 0) refVal.Dereference(out actualThis);
+                            }
+                            if (actualThis is ICorDebugObjectValue objVal2)
+                            {
+                                objVal2.GetClass(out ICorDebugClass cls2);
+                                objVal2.GetFieldValue(cls2, matchedToken.Value, out ICorDebugValue fieldVal2);
+                                var varInfo2 = VariableReader.ReadValue(expression, fieldVal2);
+                                tcs.SetResult(new EvalResult(true, varInfo2.Value, null));
+                                return;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            tcs.SetResult(new EvalResult(false, string.Empty, $"Field not available: {ex.Message}"));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        tcs.SetResult(new EvalResult(false, string.Empty,
+                            $"Variable '{expression}' not found in current scope"));
+                        return;
+                    }
+                }
+
+                // Fall back to PDB-based IL local lookup
                 Dictionary<int, string> localNames = new();
                 try { localNames = PdbReader.GetLocalNames(dllPath, (int)methodToken); }
                 catch { }
