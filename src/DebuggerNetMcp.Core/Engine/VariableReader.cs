@@ -390,6 +390,15 @@ internal static class VariableReader
             if (string.IsNullOrEmpty(dllPath))
                 return new VariableInfo(name, typeName, "<no module path>", Array.Empty<VariableInfo>());
 
+            // 1. Enum detection: dispatch before generic field enumeration
+            if (IsEnumType(dllPath, typedefToken))
+                return ReadEnumValue(name, objVal, cls, dllPath, typedefToken);
+
+            // 2. Nullable<T> detection: dispatch before generic field enumeration
+            string rawTypeName = GetTypeName(dllPath, typedefToken);
+            if (rawTypeName == "Nullable`1")
+                return ReadNullableValue(name, objVal, cls, dllPath, typedefToken, depth);
+
             var children = new List<VariableInfo>();
 
             // Walk the inheritance chain: collect fields from the concrete type and all base types
@@ -586,5 +595,185 @@ internal static class VariableReader
             return metadata.GetString(typeDef.Name);
         }
         catch { return "object"; }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Enum helpers
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns true when the TypeDef identified by <paramref name="typedefToken"/> directly
+    /// inherits from System.Enum (i.e. is an enum type).
+    /// </summary>
+    private static bool IsEnumType(string dllPath, uint typedefToken)
+    {
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            int rowNumber = (int)(typedefToken & 0x00FFFFFF);
+            var typeHandle = MetadataTokens.TypeDefinitionHandle(rowNumber);
+            var typeDef = metadata.GetTypeDefinition(typeHandle);
+            var baseTypeHandle = typeDef.BaseType;
+            if (baseTypeHandle.IsNil) return false;
+            if (baseTypeHandle.Kind != HandleKind.TypeReference) return false;
+            var typeRef = metadata.GetTypeReference((TypeReferenceHandle)baseTypeHandle);
+            string refName = metadata.GetString(typeRef.Name);
+            string refNamespace = metadata.GetString(typeRef.Namespace);
+            return refName == "Enum" && refNamespace == "System";
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Reads the enum member names and their underlying integer values from PE metadata.
+    /// Returns the simple type name and a mapping from integer value to member name.
+    /// </summary>
+    private static (string typeName, Dictionary<long, string> members) GetEnumFields(string dllPath, uint typedefToken)
+    {
+        var members = new Dictionary<long, string>();
+        string typeName = "Enum";
+        try
+        {
+            using var peReader = new PEReader(File.OpenRead(dllPath));
+            var metadata = peReader.GetMetadataReader();
+            int rowNumber = (int)(typedefToken & 0x00FFFFFF);
+            var typeHandle = MetadataTokens.TypeDefinitionHandle(rowNumber);
+            var typeDef = metadata.GetTypeDefinition(typeHandle);
+            typeName = metadata.GetString(typeDef.Name);
+
+            foreach (var fieldHandle in typeDef.GetFields())
+            {
+                var field = metadata.GetFieldDefinition(fieldHandle);
+                string fieldName = metadata.GetString(field.Name);
+
+                // Skip the special "value__" field that holds the underlying integer storage
+                if (fieldName == "value__") continue;
+
+                // Only static fields are enum members
+                if ((field.Attributes & System.Reflection.FieldAttributes.Static) == 0) continue;
+
+                var constantHandle = field.GetDefaultValue();
+                if (constantHandle.IsNil) continue;
+
+                var constant = metadata.GetConstant(constantHandle);
+                var blobReader = metadata.GetBlobReader(constant.Value);
+
+                long intValue = constant.TypeCode switch
+                {
+                    ConstantTypeCode.SByte   => blobReader.ReadSByte(),
+                    ConstantTypeCode.Byte    => blobReader.ReadByte(),
+                    ConstantTypeCode.Int16   => blobReader.ReadInt16(),
+                    ConstantTypeCode.UInt16  => blobReader.ReadUInt16(),
+                    ConstantTypeCode.Int32   => blobReader.ReadInt32(),
+                    ConstantTypeCode.UInt32  => (long)blobReader.ReadUInt32(),
+                    ConstantTypeCode.Int64   => blobReader.ReadInt64(),
+                    ConstantTypeCode.UInt64  => (long)blobReader.ReadUInt64(),
+                    _                        => 0L
+                };
+
+                members[intValue] = fieldName;
+            }
+        }
+        catch { }
+        return (typeName, members);
+    }
+
+    /// <summary>
+    /// Reads an enum value: finds the value__ field, reads its integer, resolves the member name.
+    /// Returns "TypeName.MemberName" or "TypeName(rawValue)" if the member is not found.
+    /// </summary>
+    private static VariableInfo ReadEnumValue(string name, ICorDebugObjectValue objVal, ICorDebugClass cls, string dllPath, uint typedefToken)
+    {
+        try
+        {
+            // Find the value__ field token (the only instance field in an enum type)
+            var fieldMap = ReadInstanceFieldsFromPE(dllPath, typedefToken);
+            uint valueFieldToken = 0;
+            foreach (var (token, fieldName) in fieldMap)
+            {
+                if (fieldName == "value__")
+                {
+                    valueFieldToken = token;
+                    break;
+                }
+            }
+
+            if (valueFieldToken == 0)
+                return new VariableInfo(name, "Enum", "<no value__ field>", Array.Empty<VariableInfo>());
+
+            objVal.GetFieldValue(cls, valueFieldToken, out ICorDebugValue rawVal);
+
+            // Read the underlying integer via the generic value bytes
+            var buf = ReadGenericBytes(rawVal);
+            rawVal.GetType(out uint enumElemTypeRaw);
+            long intValue = (CorElementType)enumElemTypeRaw switch
+            {
+                CorElementType.I1 => (sbyte)buf[0],
+                CorElementType.U1 => buf[0],
+                CorElementType.I2 => BitConverter.ToInt16(buf, 0),
+                CorElementType.U2 => BitConverter.ToUInt16(buf, 0),
+                CorElementType.I4 => BitConverter.ToInt32(buf, 0),
+                CorElementType.U4 => (long)BitConverter.ToUInt32(buf, 0),
+                CorElementType.I8 => BitConverter.ToInt64(buf, 0),
+                CorElementType.U8 => (long)BitConverter.ToUInt64(buf, 0),
+                _                 => BitConverter.ToInt32(buf, 0)
+            };
+
+            var (typeName, members) = GetEnumFields(dllPath, typedefToken);
+
+            if (members.TryGetValue(intValue, out string? memberName))
+                return new VariableInfo(name, typeName, $"{typeName}.{memberName}", Array.Empty<VariableInfo>());
+            else
+                return new VariableInfo(name, typeName, $"{typeName}({intValue})", Array.Empty<VariableInfo>());
+        }
+        catch (Exception ex)
+        {
+            return new VariableInfo(name, "Enum", $"<error: {ex.Message}>", Array.Empty<VariableInfo>());
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Nullable<T> helper
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads a Nullable&lt;T&gt; value: returns "null" when HasValue is false, or the unwrapped T
+    /// value when HasValue is true.
+    /// </summary>
+    private static VariableInfo ReadNullableValue(string name, ICorDebugObjectValue objVal, ICorDebugClass cls, string dllPath, uint typedefToken, int depth)
+    {
+        try
+        {
+            var fieldMap = ReadInstanceFieldsFromPE(dllPath, typedefToken);
+
+            uint hasValueToken = 0;
+            uint valueToken = 0;
+            foreach (var (token, fieldName) in fieldMap)
+            {
+                if (fieldName == "hasValue") hasValueToken = token;
+                else if (fieldName == "value") valueToken = token;
+            }
+
+            if (hasValueToken == 0)
+                return new VariableInfo(name, "Nullable", "<no hasValue field>", Array.Empty<VariableInfo>());
+
+            objVal.GetFieldValue(cls, hasValueToken, out ICorDebugValue hvVal);
+            var hvBuf = ReadGenericBytes(hvVal);
+            bool hasValue = hvBuf[0] != 0;
+
+            if (!hasValue)
+                return new VariableInfo(name, "Nullable", "null", Array.Empty<VariableInfo>());
+
+            if (valueToken == 0)
+                return new VariableInfo(name, "Nullable", "<no value field>", Array.Empty<VariableInfo>());
+
+            objVal.GetFieldValue(cls, valueToken, out ICorDebugValue valVal);
+            return ReadValue(name, valVal, depth + 1);
+        }
+        catch (Exception ex)
+        {
+            return new VariableInfo(name, "Nullable", $"<error: {ex.Message}>", Array.Empty<VariableInfo>());
+        }
     }
 }
