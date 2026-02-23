@@ -104,7 +104,12 @@ Plans:
   2. `debug_variables` shows an enum variable as "EnumName.MemberName" string, not a raw integer
   3. `debug_variables` shows a Nullable<T> with HasValue=true as the unwrapped value; with HasValue=false as "null"
   4. `debug_evaluate` or `debug_variables` returns the current value of a static field from a class
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Enum detection (IsEnumType/ReadEnumValue) + Nullable<T> unwrapping in VariableReader (TYPE-02, TYPE-03)
+- [ ] 05-02-PLAN.md — ICorDebugClass.GetStaticFieldValue + static field reading in VariableReader + GetLocalsAsync/EvaluateAsync (TYPE-04)
+- [ ] 05-03-PLAN.md — HelloDebug sections 13-16 (struct, enum, Nullable, static) + live verification checkpoint (TYPE-01)
 
 ### Phase 6: Closures, Iterators & Object Graph
 **Goal**: Users can inspect lambda-captured variables and iterator state; VariableReader handles circular object graphs without crashing
@@ -161,7 +166,7 @@ Plans:
 | 2. Interop + Engine Foundation | v1.0 | 3/3 | Complete | 2026-02-22 |
 | 3. Debug Engine | v1.0 | 5/5 | Complete | 2026-02-22 |
 | 4. MCP Server | v1.0 | 2/2 | Complete | 2026-02-23 |
-| 5. Type System | v1.1 | 0/TBD | Not started | - |
+| 5. Type System | v1.1 | 0/3 | Not started | - |
 | 6. Closures, Iterators & Object Graph | v1.1 | 0/TBD | Not started | - |
 | 7. Exceptions, Threading & Attach | v1.1 | 0/TBD | Not started | - |
 | 8. Stack Trace & dotnet test | v1.1 | 0/TBD | Not started | - |
