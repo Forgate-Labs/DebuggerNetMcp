@@ -76,8 +76,26 @@ internal static class VariableReader
         }
         catch
         {
-            // GetType() failed — likely a reference value that needs dereferencing first.
-            // Try treating it as ICorDebugReferenceValue and recurse on the dereferenced value.
+            // GetType() failed — the returned COM object may support a derived interface
+            // but not ICorDebugValue directly. Try the most specific interfaces first.
+
+            // Try ICorDebugStringValue directly
+            try
+            {
+                var sv = (ICorDebugStringValue)value;
+                return ReadString(name, sv);
+            }
+            catch { }
+
+            // Try ICorDebugArrayValue directly
+            try
+            {
+                var av = (ICorDebugArrayValue)value;
+                return ReadArray(name, av, depth);
+            }
+            catch { }
+
+            // Try ICorDebugReferenceValue (may wrap null or need dereference)
             try
             {
                 var refFallback = (ICorDebugReferenceValue)value;
@@ -86,10 +104,9 @@ internal static class VariableReader
                 refFallback.Dereference(out ICorDebugValue derefFb);
                 return ReadValue(name, derefFb, depth);
             }
-            catch (Exception innerEx)
-            {
-                return new VariableInfo(name, "?", $"<error reading type: {innerEx.Message}>", Array.Empty<VariableInfo>());
-            }
+            catch { }
+
+            return new VariableInfo(name, "?", "<unreadable reference>", Array.Empty<VariableInfo>());
         }
 
         var elementType = (CorElementType)elementTypeRaw;
@@ -218,7 +235,27 @@ internal static class VariableReader
 
     private static VariableInfo ReadString(string name, ICorDebugValue value)
     {
-        var strVal = (ICorDebugStringValue)value;
+        // GetFieldValue may return a reference (ICorDebugReferenceValue) even when GetType() says String.
+        // CoreCLR on Linux sometimes returns the field's value as an indirect reference.
+        // Try deref first; if that fails, cast directly.
+        ICorDebugStringValue? strVal = null;
+        try { strVal = (ICorDebugStringValue)value; }
+        catch
+        {
+            try
+            {
+                var rv = (ICorDebugReferenceValue)value;
+                rv.IsNull(out int isNull);
+                if (isNull != 0) return new VariableInfo(name, "string", "null", Array.Empty<VariableInfo>());
+                rv.Dereference(out var derefed);
+                strVal = (ICorDebugStringValue)derefed;
+            }
+            catch
+            {
+                return new VariableInfo(name, "string", "<unavailable>", Array.Empty<VariableInfo>());
+            }
+        }
+
         strVal.GetLength(out uint len);
 
         string result;
@@ -252,7 +289,24 @@ internal static class VariableReader
 
     private static VariableInfo ReadArray(string name, ICorDebugValue value, int depth)
     {
-        var arrVal = (ICorDebugArrayValue)value;
+        // Similar to ReadString: dereference first if direct cast fails.
+        ICorDebugArrayValue? arrVal = null;
+        try { arrVal = (ICorDebugArrayValue)value; }
+        catch
+        {
+            try
+            {
+                var rv = (ICorDebugReferenceValue)value;
+                rv.IsNull(out int isNull);
+                if (isNull != 0) return new VariableInfo(name, "array", "null", Array.Empty<VariableInfo>());
+                rv.Dereference(out var derefed);
+                arrVal = (ICorDebugArrayValue)derefed;
+            }
+            catch
+            {
+                return new VariableInfo(name, "array", "<unavailable>", Array.Empty<VariableInfo>());
+            }
+        }
         arrVal.GetCount(out uint count);
         arrVal.GetElementType(out uint elemTypeRaw);
 
