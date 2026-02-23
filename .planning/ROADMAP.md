@@ -91,8 +91,8 @@ Plans:
 
 - [x] **Phase 5: Type System** - Structs, enums, Nullable<T>, and static fields readable via debug_variables/debug_evaluate (completed 2026-02-23)
 - [x] **Phase 6: Closures, Iterators & Object Graph** - Lambda captures, yield return state machines, circular reference detection, computed properties (completed 2026-02-23)
-- [x] **Phase 7: Exceptions, Threading & Attach** - Unhandled exception events, first-chance notifications, multi-thread inspection, debug_attach by PID (completed 2026-02-23)
-- [x] **Phase 8: Stack Trace & dotnet test** - Reverse PDB lookup for readable stack frames, debug_launch for xUnit test processes (completed 2026-02-23)
+- [x] **Phase 7: Exceptions, Threading & Attach** - Unhandled exception events, first-chance notifications, multi-thread inspection, debug_attach by PID (completed 2026-02-23)
+- [x] **Phase 8: Stack Trace & dotnet test** - Reverse PDB lookup for readable stack frames, debug_launch for xUnit test processes (completed 2026-02-23)
 - [ ] **Phase 9: Tests & Documentation** - xUnit integration tests covering all scenarios, README rewrite
 
 ### Phase 5: Type System
@@ -169,8 +169,13 @@ Plans:
   1. `dotnet test` runs PdbReaderTests (forward and reverse lookup) with all assertions passing
   2. `dotnet test` runs DebuggerIntegrationTests covering launch, breakpoint, variables, step, and exit — all passing without manual intervention
   3. Integration tests cover unhandled exceptions, multi-thread inspection, and process attach scenarios — all passing
-  4. README contains an ASCII architecture diagram, prerequisites (libdbgshim.so location), build.sh/install.sh steps, and usage examples for all 14 tools
-**Plans**: TBD
+  4. README contains an ASCII architecture diagram, prerequisites (libdbgshim.so location), build.sh/install.sh steps, and usage examples for all 15 tools
+**Plans**: 3 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — csproj infra + PdbReaderTests (forward/reverse lookup) + DebuggerFixture (TEST-02)
+- [ ] 09-02-PLAN.md — DebuggerIntegrationTests + DebuggerAdvancedTests: full session, exceptions, threading, attach (TEST-03, TEST-09)
+- [ ] 09-03-PLAN.md — README.md complete rewrite: architecture diagram, prerequisites, tools reference (DOCS-01)
 
 ## Progress
 
@@ -184,4 +189,4 @@ Plans:
 | 6. Closures, Iterators & Object Graph | 3/3 | Complete   | 2026-02-23 | - |
 | 7. Exceptions, Threading & Attach | 3/3 | Complete   | 2026-02-23 | - |
 | 8. Stack Trace & dotnet test | 2/2 | Complete   | 2026-02-23 | - |
-| 9. Tests & Documentation | v1.1 | 0/TBD | Not started | - |
+| 9. Tests & Documentation | v1.1 | 0/3 | Not started | - |
