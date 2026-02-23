@@ -752,7 +752,34 @@ public sealed class DotnetDebugger : IAsyncDisposable
                     ilFrame.GetIP(out uint ip, out _);
                     current.GetFunction(out ICorDebugFunction fn);
                     fn.GetToken(out uint methodToken);
-                    frames.Add(new StackFrameInfo(frameIndex++, $"0x{methodToken:X8}", null, null, (int)ip));
+
+                    string? sourceFile = null;
+                    int? sourceLine = null;
+                    string methodName = $"0x{methodToken:X8}"; // fallback
+
+                    try
+                    {
+                        fn.GetModule(out ICorDebugModule module);
+                        string dllPath = VariableReader.GetModulePath(module);
+                        if (!string.IsNullOrEmpty(dllPath))
+                        {
+                            // Resolve source location via PDB reverse lookup
+                            var loc = PdbReader.ReverseLookup(dllPath, (int)methodToken, (int)ip);
+                            if (loc.HasValue)
+                            {
+                                sourceFile = Path.GetFileName(loc.Value.sourceFile);
+                                sourceLine = loc.Value.line;
+                            }
+
+                            // Resolve method name from PE metadata
+                            var (resolvedName, _) = PdbReader.GetMethodTypeFields(dllPath, (int)methodToken);
+                            if (!string.IsNullOrEmpty(resolvedName))
+                                methodName = resolvedName;
+                        }
+                    }
+                    catch { /* non-fatal: framework frames have no PDB; fall back to hex token */ }
+
+                    frames.Add(new StackFrameInfo(frameIndex++, methodName, sourceFile, sourceLine, (int)ip));
                 }
                 else
                 {
