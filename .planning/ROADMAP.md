@@ -91,7 +91,7 @@ Plans:
 
 - [x] **Phase 5: Type System** - Structs, enums, Nullable<T>, and static fields readable via debug_variables/debug_evaluate (completed 2026-02-23)
 - [x] **Phase 6: Closures, Iterators & Object Graph** - Lambda captures, yield return state machines, circular reference detection, computed properties (completed 2026-02-23)
-- [ ] **Phase 7: Exceptions, Threading & Attach** - Unhandled exception events, first-chance notifications, multi-thread inspection, debug_attach by PID
+- [x] **Phase 7: Exceptions, Threading & Attach** - Unhandled exception events, first-chance notifications, multi-thread inspection, debug_attach by PID (completed 2026-02-23)
 - [ ] **Phase 8: Stack Trace & dotnet test** - Reverse PDB lookup for readable stack frames, debug_launch for xUnit test processes
 - [ ] **Phase 9: Tests & Documentation** - xUnit integration tests covering all scenarios, README rewrite
 
@@ -178,6 +178,6 @@ Plans:
 | 4. MCP Server | v1.0 | 2/2 | Complete | 2026-02-23 |
 | 5. Type System | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 6. Closures, Iterators & Object Graph | 3/3 | Complete   | 2026-02-23 | - |
-| 7. Exceptions, Threading & Attach | 2/3 | In Progress|  | - |
+| 7. Exceptions, Threading & Attach | 3/3 | Complete   | 2026-02-23 | - |
 | 8. Stack Trace & dotnet test | v1.1 | 0/TBD | Not started | - |
 | 9. Tests & Documentation | v1.1 | 0/TBD | Not started | - |

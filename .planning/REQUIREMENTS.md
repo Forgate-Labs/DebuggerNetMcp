@@ -75,7 +75,7 @@
 
 ### Process Attach (ATCH)
 
-- [ ] **ATCH-01**: debug_attach(pid) conecta ao processo .NET já em execução e retorna state="attached" com informações do processo
+- [x] **ATCH-01**: debug_attach(pid) conecta ao processo .NET já em execução e retorna state="attached" com informações do processo
 
 ### Stack Trace (STKT)
 
@@ -146,7 +146,7 @@
 | THRD-01 | Phase 7 | Complete |
 | THRD-02 | Phase 7 | Complete |
 | THRD-03 | Phase 7 | Complete |
-| ATCH-01 | Phase 7 | Pending |
+| ATCH-01 | Phase 7 | Complete |
 | STKT-01 | Phase 8 | Pending |
 | STKT-02 | Phase 8 | Pending |
 | DTEST-01 | Phase 8 | Pending |
