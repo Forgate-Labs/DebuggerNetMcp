@@ -108,6 +108,31 @@ Console.WriteLine($"[15] Nullable: withValue={withValue}, withoutValue={withoutV
 AppConfig.MaxRetries = 5;  // mutate to verify we read current value, not compile-time constant
 Console.WriteLine($"[16] Static: MaxRetries={AppConfig.MaxRetries}, Version={AppConfig.Version}");  // <── BP-16
 
+// ─── SECTION 17: Closure (lambda capture) ────────────────────────────────────
+// BP-17: Set breakpoint on the Console.WriteLine inside the lambda.
+// Expected: capturedValue=100, capturedName="world" visible as locals.
+int capturedValue = 100;
+string capturedName = "world";
+Action action17 = () =>
+{
+    Console.WriteLine($"[17] Closure: {capturedName}={capturedValue}");  // <── BP-17
+};
+action17();
+
+// ─── SECTION 18: Iterator (yield return) ─────────────────────────────────────
+// BP-18: Set breakpoint on the Console.WriteLine line below (after MoveNext).
+// Expected: 'iter' shows Current=10, _state fields visible.
+var iter = GetNumbers().GetEnumerator();
+iter.MoveNext();
+Console.WriteLine($"[18] Iterator Current: {iter.Current}");  // <── BP-18
+
+// ─── SECTION 19: Circular reference ──────────────────────────────────────────
+// BP-19: Set breakpoint on the Console.WriteLine below.
+// Expected: inspecting 'circObj' shows Self="<circular reference>" not a crash.
+var circObj = new CircularRef();
+circObj.Self = circObj;
+Console.WriteLine($"[19] Circular: Value={circObj.Value}");  // <── BP-19
+
 Console.WriteLine("[HelloDebug] Session complete");
 
 // ─── Helper methods ──────────────────────────────────────────────────────────
@@ -128,6 +153,13 @@ static async Task<int> FetchValueAsync(int input)
 {
     await Task.Delay(10);    // simulate I/O
     return input * input;
+}
+
+static IEnumerable<int> GetNumbers()
+{
+    yield return 10;
+    yield return 20;
+    yield return 30;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -159,4 +191,11 @@ static class AppConfig
 {
     public static int MaxRetries = 3;
     public static readonly string Version = "1.0.0";
+}
+
+// Section 19: circular reference
+class CircularRef
+{
+    public int Value = 42;
+    public CircularRef? Self;
 }
