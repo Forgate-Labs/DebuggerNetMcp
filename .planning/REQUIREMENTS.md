@@ -89,7 +89,7 @@
 
 ### Testes de Integração (TEST)
 
-- [ ] **TEST-02**: PdbReaderTests.cs — testa mapeamento source→IL e reverse IL→source para HelloDebug e HelloDebug v1.1
+- [x] **TEST-02**: PdbReaderTests.cs — testa mapeamento source→IL e reverse IL→source para HelloDebug e HelloDebug v1.1
 - [ ] **TEST-03**: DebuggerIntegrationTests.cs — fluxo completo: launch → breakpoint → variables → continue → exit sem intervenção manual
 - [x] **TEST-08**: HelloDebug expandido com seções 13-19 cobrindo struct, enum, nullable, closure, iterator, threading, circular ref
 - [ ] **TEST-09**: Integration tests para exceções não-capturadas, multi-threading e process attach
@@ -151,7 +151,7 @@
 | STKT-02 | Phase 8 | Complete |
 | DTEST-01 | Phase 8 | Complete |
 | DTEST-02 | Phase 8 | Complete |
-| TEST-02 | Phase 9 | Pending |
+| TEST-02 | Phase 9 | Complete |
 | TEST-03 | Phase 9 | Pending |
 | TEST-09 | Phase 9 | Pending |
 | DOCS-01 | Phase 9 | Pending |

@@ -173,7 +173,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — csproj infra + PdbReaderTests (forward/reverse lookup) + DebuggerFixture (TEST-02)
+- [x] 09-01-PLAN.md — csproj infra + PdbReaderTests (forward/reverse lookup) + DebuggerFixture (TEST-02)
 - [ ] 09-02-PLAN.md — DebuggerIntegrationTests + DebuggerAdvancedTests: full session, exceptions, threading, attach (TEST-03, TEST-09)
 - [ ] 09-03-PLAN.md — README.md complete rewrite: architecture diagram, prerequisites, tools reference (DOCS-01)
 
