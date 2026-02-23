@@ -90,6 +90,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
     /// <param name="appDllPath">Path to the compiled .dll to run (e.g. bin/Debug/net9.0/App.dll).</param>
     /// <param name="ct">Cancellation token.</param>
     public async Task LaunchAsync(string projectPath, string appDllPath,
+        bool notifyFirstChanceExceptions = false,
         CancellationToken ct = default)
     {
         // Clean up any previous session (terminates the old process and clears module/breakpoint state).
@@ -118,6 +119,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
         // StoppedEvent("process_created") before any user code runs.  This lets the caller
         // configure breakpoints (as pending, since modules load after the first Continue).
         _callbackHandler.StopAtCreateProcess = true;
+        _callbackHandler.NotifyFirstChanceExceptions = notifyFirstChanceExceptions;
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await DispatchAsync(() =>
         {
@@ -594,15 +596,114 @@ public sealed class DotnetDebugger : IAsyncDisposable
         return thread;
     }
 
+    /// <summary>
+    /// Returns all threads in the process using a celt=1 loop.
+    /// MUST be called on the debug thread (inside DispatchAsync).
+    /// Uses celt=1 to avoid ICorDebugThreadEnum.Next LPArray marshaling issues with
+    /// source-generated COM interop — the same pattern used for chain/frame enumeration.
+    /// </summary>
+    private List<ICorDebugThread> GetAllThreads()
+    {
+        var threads = new List<ICorDebugThread>();
+        if (_process is null) return threads;
+        _process.EnumerateThreads(out ICorDebugThreadEnum threadEnum);
+        var arr = new ICorDebugThread[1];
+        while (true)
+        {
+            threadEnum.Next(1, arr, out uint fetched);
+            if (fetched == 0) break;
+            threads.Add(arr[0]);
+        }
+        return threads;
+    }
+
+    /// <summary>
+    /// Returns a specific thread by ID, or throws if not found.
+    /// MUST be called on the debug thread.
+    /// </summary>
+    private ICorDebugThread GetThreadById(uint threadId)
+    {
+        _process!.GetThread(threadId, out ICorDebugThread thread);
+        if (thread is null)
+            throw new InvalidOperationException($"Thread {threadId} not found in process");
+        return thread;
+    }
+
     // -----------------------------------------------------------------------
     // Public API — Inspection
     // -----------------------------------------------------------------------
 
     /// <summary>
+    /// Walks the chain/frame tree for a single thread. MUST be called on the debug thread.
+    /// </summary>
+    private List<StackFrameInfo> GetStackFramesForThread(ICorDebugThread thread)
+    {
+        var frames = new List<StackFrameInfo>();
+        thread.EnumerateChains(out ICorDebugChainEnum chainEnum);
+        var chains = new ICorDebugChain[1];
+        int frameIndex = 0;
+
+        while (true)
+        {
+            chainEnum.Next(1, chains, out uint chainFetched);
+            if (chainFetched == 0) break;
+
+            chains[0].EnumerateFrames(out ICorDebugFrameEnum frameEnum);
+            var frameArr = new ICorDebugFrame[1];
+
+            while (true)
+            {
+                frameEnum.Next(1, frameArr, out uint frameFetched);
+                if (frameFetched == 0) break;
+
+                var frame = frameArr[0];
+                try
+                {
+                    if (frame is ICorDebugILFrame ilFrame)
+                    {
+                        ilFrame.GetIP(out uint ip, out _);
+                        frame.GetFunction(out ICorDebugFunction fn);
+                        fn.GetToken(out uint methodToken);
+                        fn.GetModule(out ICorDebugModule module);
+
+                        uint nameLen = 512;
+                        IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
+                        string dllPath;
+                        try
+                        {
+                            module.GetName(nameLen, out _, namePtr);
+                            dllPath = Marshal.PtrToStringUni(namePtr) ?? string.Empty;
+                        }
+                        finally
+                        {
+                            Marshal.FreeHGlobal(namePtr);
+                        }
+
+                        frames.Add(new StackFrameInfo(
+                            frameIndex++,
+                            $"0x{methodToken:X8}",
+                            null,
+                            null,
+                            (int)ip));
+                    }
+                    else
+                    {
+                        frameIndex++;
+                    }
+                }
+                catch { frameIndex++; }
+            }
+        }
+        return frames;
+    }
+
+    /// <summary>
     /// Returns a snapshot of the current call stack.
     /// Must be called while the debuggee is stopped (at a breakpoint, step, or pause).
+    /// When threadId is 0, uses the current stopped thread.
     /// </summary>
-    public async Task<IReadOnlyList<StackFrameInfo>> GetStackTraceAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<StackFrameInfo>> GetStackTraceAsync(
+        uint threadId = 0, CancellationToken ct = default)
     {
         var tcs = new TaskCompletionSource<IReadOnlyList<StackFrameInfo>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -611,73 +712,40 @@ public sealed class DotnetDebugger : IAsyncDisposable
         {
             try
             {
-                var frames = new List<StackFrameInfo>();
-                ICorDebugThread thread = GetCurrentThread();
+                ICorDebugThread thread = threadId != 0
+                    ? GetThreadById(threadId)
+                    : GetCurrentThread();
+                tcs.SetResult(GetStackFramesForThread(thread));
+            }
+            catch (Exception ex) { tcs.SetException(ex); }
+        }, ct);
 
-                // Enumerate chains on the thread
-                thread.EnumerateChains(out ICorDebugChainEnum chainEnum);
-                var chains = new ICorDebugChain[1];
-                int frameIndex = 0;
+        return await tcs.Task.WaitAsync(ct);
+    }
 
-                while (true)
+    /// <summary>
+    /// Returns the call stack for every active thread in the process.
+    /// Each element is (ThreadId, Frames). MUST be called while stopped.
+    /// </summary>
+    public async Task<IReadOnlyList<(uint ThreadId, IReadOnlyList<StackFrameInfo> Frames)>>
+        GetAllThreadStackTracesAsync(CancellationToken ct = default)
+    {
+        var tcs = new TaskCompletionSource<IReadOnlyList<(uint, IReadOnlyList<StackFrameInfo>)>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await DispatchAsync(() =>
+        {
+            try
+            {
+                var result = new List<(uint, IReadOnlyList<StackFrameInfo>)>();
+                var threads = GetAllThreads();
+                foreach (var thread in threads)
                 {
-                    chainEnum.Next(1, chains, out uint chainFetched);
-                    if (chainFetched == 0) break;
-
-                    chains[0].EnumerateFrames(out ICorDebugFrameEnum frameEnum);
-                    var frameArr = new ICorDebugFrame[1];
-
-                    while (true)
-                    {
-                        frameEnum.Next(1, frameArr, out uint frameFetched);
-                        if (frameFetched == 0) break;
-
-                        var frame = frameArr[0];
-                        try
-                        {
-                            if (frame is ICorDebugILFrame ilFrame)
-                            {
-                                ilFrame.GetIP(out uint ip, out _);
-                                frame.GetFunction(out ICorDebugFunction fn);
-                                fn.GetToken(out uint methodToken);
-                                fn.GetModule(out ICorDebugModule module);
-
-                                uint nameLen = 512;
-                                IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
-                                string dllPath;
-                                try
-                                {
-                                    module.GetName(nameLen, out _, namePtr);
-                                    dllPath = Marshal.PtrToStringUni(namePtr) ?? string.Empty;
-                                }
-                                finally
-                                {
-                                    Marshal.FreeHGlobal(namePtr);
-                                }
-
-                                // Try to get source location from PDB (best-effort)
-                                string? sourceFile = null;
-                                int? sourceLine = null;
-                                // TODO: add PdbReader.FindSourceLocation(dllPath, methodToken, ilOffset)
-                                // for reverse IL-offset → source line mapping. Deferred to future work.
-
-                                frames.Add(new StackFrameInfo(
-                                    frameIndex++,
-                                    $"0x{methodToken:X8}",
-                                    sourceFile,
-                                    sourceLine,
-                                    (int)ip));
-                            }
-                            else
-                            {
-                                frameIndex++;
-                            }
-                        }
-                        catch { frameIndex++; /* skip unreadable frames */ }
-                    }
+                    thread.GetID(out uint tid);
+                    var frames = GetStackFramesForThread(thread);
+                    result.Add((tid, frames));
                 }
-
-                tcs.SetResult(frames);
+                tcs.SetResult(result);
             }
             catch (Exception ex) { tcs.SetException(ex); }
         }, ct);
@@ -688,9 +756,10 @@ public sealed class DotnetDebugger : IAsyncDisposable
     /// <summary>
     /// Returns local variables in the current stack frame.
     /// Uses PDB slot-to-name mapping and ICorDebugILFrame.GetLocalVariable for values.
-    /// Must be called while stopped.
+    /// Must be called while stopped. When threadId is 0, uses the current stopped thread.
     /// </summary>
-    public async Task<IReadOnlyList<VariableInfo>> GetLocalsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<VariableInfo>> GetLocalsAsync(
+        uint threadId = 0, CancellationToken ct = default)
     {
         var tcs = new TaskCompletionSource<IReadOnlyList<VariableInfo>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -702,7 +771,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 const int CORDBG_E_IL_VAR_NOT_AVAILABLE = unchecked((int)0x80131304);
                 var result = new List<VariableInfo>();
 
-                ICorDebugThread thread = GetCurrentThread();
+                ICorDebugThread thread = threadId != 0 ? GetThreadById(threadId) : GetCurrentThread();
                 thread.GetActiveFrame(out ICorDebugFrame frame);
 
                 if (frame is null || frame is not ICorDebugILFrame ilFrame)
