@@ -8,7 +8,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-Console.WriteLine("[HelloDebug] Starting debug test session");
+const string HelloDebugVersion = "v7.0";
+Console.WriteLine($"[HelloDebug {HelloDebugVersion}] Starting debug test session");
 
 // ─── SECTION 1: Primitives ───────────────────────────────────────────────────
 // BP-1: Set breakpoint on the line below.

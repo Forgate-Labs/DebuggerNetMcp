@@ -8,6 +8,7 @@ using DebuggerNetMcp.Core.Engine;
 public sealed class DebuggerTools(DotnetDebugger debugger)
 {
     private string _state = "idle";  // idle | running | stopped | exited
+    private const string ServerVersion = "0.7.0";
 
     // -----------------------------------------------------------------------
     // Private helpers
@@ -128,7 +129,7 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
     [McpServerTool(Name = "debug_status"),
      Description("Returns the current debugger state: idle (no session), running (process running), stopped (at breakpoint or step), or exited (process terminated).")]
     public Task<string> GetStatus(CancellationToken ct) =>
-        Task.FromResult(JsonSerializer.Serialize(new { state = _state }));
+        Task.FromResult(JsonSerializer.Serialize(new { state = _state, version = ServerVersion }));
 
     // -----------------------------------------------------------------------
     // Breakpoint tools
