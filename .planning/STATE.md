@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 9 of 9 (Tests & Documentation) — IN PROGRESS
-Plan: 1 of 3 complete
-Status: Phase 9 Plan 1 complete — xUnit infrastructure, PdbReaderTests (5 tests), MathTests (2 tests), DebuggerFixture, InternalsVisibleTo
-Last activity: 2026-02-23 — 09-01 xUnit infrastructure + PdbReader unit tests; 7/7 tests green
+Phase: 9 of 9 (Tests & Documentation) — COMPLETE
+Plan: 3 of 3 complete
+Status: Phase 9 complete — README.md rewritten with C#/ICorDebug architecture, all 15 tools documented, DBGSHIM_PATH documented
+Last activity: 2026-02-23 — 09-03 README.md complete rewrite; zero stale Python/netcoredbg references
 
-Progress: [████████░░] 88% (8/9 phases complete; phase 9 plan 1/3 done)
+Progress: [██████████] 100% (9/9 phases complete; all plans done)
 
 ## Performance Metrics
 
@@ -83,6 +83,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 08-stack-trace-and-dotnet-test-02]: ServerVersion 0.9.0 — debug_launch_test feature addition
 - [Phase 09-tests-documentation-01]: InternalsVisibleTo added to Core csproj via AssemblyAttribute — PdbReader (internal static) accessible from test assembly without changing visibility
 - [Phase 09-tests-documentation-01]: PdbReaderTests path: 4 levels up from AppContext.BaseDirectory to reach HelloDebug/bin/Debug/net10.0/
+- [Phase 09-tests-documentation]: README does not mention netcoredbg/Python/DAP — fully eliminated in Phase 1-4; ASCII diagram shows direct ICorDebug architecture
 
 ### Blockers/Concerns
 
@@ -93,5 +94,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 09-01-PLAN.md — xUnit infrastructure + PdbReader unit tests; 7/7 tests green
+Stopped at: Completed 09-03-PLAN.md — README.md complete rewrite; all phase 9 plans done
 Resume file: None

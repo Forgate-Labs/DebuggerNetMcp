@@ -189,4 +189,4 @@ Plans:
 | 6. Closures, Iterators & Object Graph | 3/3 | Complete   | 2026-02-23 | - |
 | 7. Exceptions, Threading & Attach | 3/3 | Complete   | 2026-02-23 | - |
 | 8. Stack Trace & dotnet test | 2/2 | Complete   | 2026-02-23 | - |
-| 9. Tests & Documentation | v1.1 | 0/3 | Not started | - |
+| 9. Tests & Documentation | 2/3 | In Progress|  | - |

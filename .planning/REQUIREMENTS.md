@@ -96,7 +96,7 @@
 
 ### Documentação (DOCS)
 
-- [ ] **DOCS-01**: README.md reescrito — nova arquitetura (diagrama ASCII), pré-requisitos, localização do libdbgshim.so, build.sh, install.sh, exemplos de todas as tools, troubleshooting
+- [x] **DOCS-01**: README.md reescrito — nova arquitetura (diagrama ASCII), pré-requisitos, localização do libdbgshim.so, build.sh, install.sh, exemplos de todas as tools, troubleshooting
 
 ---
 
@@ -154,7 +154,7 @@
 | TEST-02 | Phase 9 | Complete |
 | TEST-03 | Phase 9 | Pending |
 | TEST-09 | Phase 9 | Pending |
-| DOCS-01 | Phase 9 | Pending |
+| DOCS-01 | Phase 9 | Complete |
 
 **Coverage v1.1:**
 - v1.1 requirements: 24 total
