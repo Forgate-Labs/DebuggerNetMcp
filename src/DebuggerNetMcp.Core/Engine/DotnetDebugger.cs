@@ -636,12 +636,14 @@ public sealed class DotnetDebugger : IAsyncDisposable
         var threads = new List<ICorDebugThread>();
         if (_process is null) return threads;
         _process.EnumerateThreads(out ICorDebugThreadEnum threadEnum);
+        if (threadEnum is null) return threads;
         var arr = new ICorDebugThread[1];
         while (true)
         {
             threadEnum.Next(1, arr, out uint fetched);
             if (fetched == 0) break;
-            threads.Add(arr[0]);
+            if (arr[0] is not null)
+                threads.Add(arr[0]);
         }
         return threads;
     }
@@ -677,8 +679,10 @@ public sealed class DotnetDebugger : IAsyncDisposable
         {
             chainEnum.Next(1, chains, out uint chainFetched);
             if (chainFetched == 0) break;
+            if (chains[0] is null) { frameIndex++; continue; }
 
             chains[0].EnumerateFrames(out ICorDebugFrameEnum frameEnum);
+            if (frameEnum is null) { frameIndex++; continue; }
             var frameArr = new ICorDebugFrame[1];
 
             while (true)
@@ -687,6 +691,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 if (frameFetched == 0) break;
 
                 var frame = frameArr[0];
+                if (frame is null) { frameIndex++; continue; }
                 try
                 {
                     if (frame is ICorDebugILFrame ilFrame)
@@ -769,6 +774,11 @@ public sealed class DotnetDebugger : IAsyncDisposable
             {
                 var result = new List<(uint, IReadOnlyList<StackFrameInfo>)>();
                 var threads = GetAllThreads();
+                // Fallback: if EnumerateThreads returns nothing, include at least the stopped thread
+                if (threads.Count == 0)
+                {
+                    try { threads.Add(GetCurrentThread()); } catch { }
+                }
                 foreach (var thread in threads)
                 {
                     try
