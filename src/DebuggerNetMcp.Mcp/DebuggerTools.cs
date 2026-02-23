@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Linq;
 using System.Text.Json;
 using ModelContextProtocol.Server;
 using DebuggerNetMcp.Core.Engine;
@@ -56,15 +57,20 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
     [McpServerTool(Name = "debug_launch"),
      Description("Build and launch a .NET project under the debugger. " +
                  "Returns with state=stopped once the process is created and suspended. " +
-                 "Set breakpoints now (they will be activated when modules load), then call debug_continue to run.")]
+                 "Set breakpoints now (they will be activated when modules load), then call debug_continue to run. " +
+                 "Use firstChanceExceptions=true to stop on thrown exceptions before they are caught.")]
     public async Task<string> Launch(
         [Description("Path to the .csproj file or project directory")] string projectPath,
         [Description("Path to the compiled .dll to debug (e.g. bin/Debug/net10.0/App.dll)")] string appDllPath,
-        CancellationToken ct)
+        [Description("If true, stop on every thrown exception (first-chance) before it is caught. " +
+                     "Default false. Warning: enabling this on apps that use exceptions for control " +
+                     "flow (JSON parsing, IO) can generate many events.")]
+        bool firstChanceExceptions = false,
+        CancellationToken ct = default)
     {
         try
         {
-            await debugger.LaunchAsync(projectPath, appDllPath, ct);
+            await debugger.LaunchAsync(projectPath, appDllPath, firstChanceExceptions, ct);
             // LaunchAsync waits for the CreateProcess stopping event, so the process is suspended.
             // The caller should set breakpoints and then call debug_continue.
             _state = "stopped";
@@ -189,12 +195,14 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
     // -----------------------------------------------------------------------
 
     [McpServerTool(Name = "debug_variables"),
-     Description("Get local variables at the current stopped position. Requires the process to be stopped at a breakpoint or step.")]
-    public async Task<string> GetVariables(CancellationToken ct)
+     Description("Get local variables at the current stopped position. Requires the process to be stopped at a breakpoint or step. Pass thread_id to inspect a specific thread's locals.")]
+    public async Task<string> GetVariables(
+        [Description("Thread ID to inspect. 0 or omitted = use the current stopped thread.")] uint thread_id = 0,
+        CancellationToken ct = default)
     {
         try
         {
-            var locals = await debugger.GetLocalsAsync(ct);
+            var locals = await debugger.GetLocalsAsync(thread_id, ct);
             return JsonSerializer.Serialize(locals);
         }
         catch (Exception ex)
@@ -207,13 +215,24 @@ public sealed class DebuggerTools(DotnetDebugger debugger)
     }
 
     [McpServerTool(Name = "debug_stacktrace"),
-     Description("Get the current call stack. Requires the process to be stopped at a breakpoint or step.")]
-    public async Task<string> GetStackTrace(CancellationToken ct)
+     Description("Get the call stack. Without thread_id, returns frames for ALL active threads. With thread_id, returns frames for that specific thread. Requires the process to be stopped.")]
+    public async Task<string> GetStackTrace(
+        [Description("Thread ID to get stack for. 0 or omitted = return all active threads.")] uint thread_id = 0,
+        CancellationToken ct = default)
     {
         try
         {
-            var frames = await debugger.GetStackTraceAsync(ct);
-            return JsonSerializer.Serialize(frames);
+            if (thread_id != 0)
+            {
+                var frames = await debugger.GetStackTraceAsync(thread_id, ct);
+                return JsonSerializer.Serialize(new { thread_id, frames });
+            }
+            else
+            {
+                var allThreads = await debugger.GetAllThreadStackTracesAsync(ct);
+                var threads = allThreads.Select(t => new { threadId = t.ThreadId, frames = t.Frames }).ToList();
+                return JsonSerializer.Serialize(new { threads });
+            }
         }
         catch (Exception ex)
         {

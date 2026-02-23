@@ -188,6 +188,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
             _pendingBreakpoints.Clear();
             _activeBreakpoints.Clear();
             _nextBreakpointId = 1;
+            _callbackHandler.NotifyFirstChanceExceptions = false;
         }, ct);
     }
 
