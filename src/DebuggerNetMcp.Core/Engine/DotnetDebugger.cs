@@ -154,6 +154,15 @@ public sealed class DotnetDebugger : IAsyncDisposable
     public async Task<(uint Pid, string ProcessName)> AttachAsync(
         uint processId, CancellationToken ct = default)
     {
+        // Clean up any previous session so _launchedPid / _corDebug / _process are reset.
+        // Without this, OnRuntimeStarted uses _launchedPid from the old session and calls
+        // DebugActiveProcess on the wrong PID, causing the CreateProcess callback to never fire.
+        if (_process is not null || _launchedPid != 0)
+        {
+            _callbackHandler.SuppressExitProcess = true;
+            await DisconnectAsync(ct);
+        }
+
         var attachConfirmedTcs = new TaskCompletionSource<uint>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -379,11 +388,8 @@ public sealed class DotnetDebugger : IAsyncDisposable
             // Attach path: process is already running. DebugActiveProcess registers the debugger
             // and delivers initial sync callbacks. Do NOT call Continue here — the CreateProcess
             // callback (StopAtCreateProcess=false for attach) will call pProcess.Continue(0).
-            try
-            {
-                _corDebug.DebugActiveProcess(_attachPid, 0, out _);
-            }
-            catch { /* ignore */ }
+            // Do NOT catch exceptions — let them propagate to AttachToProcess → TrySetException.
+            _corDebug.DebugActiveProcess(_attachPid, 0, out _);
         }
     }
 
