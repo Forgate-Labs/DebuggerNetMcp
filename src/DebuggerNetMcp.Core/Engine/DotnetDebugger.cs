@@ -35,6 +35,9 @@ public sealed class DotnetDebugger : IAsyncDisposable
     private uint _attachPid;
     private int _nextBreakpointId = 1;
 
+    // dotnet test vstest runner process (kept alive while testhost is being debugged)
+    private System.Diagnostics.Process? _dotnetTestProcess;
+
     // Pending breakpoints: set before the module loads
     private readonly List<PendingBreakpoint> _pendingBreakpoints = new();
 
@@ -206,6 +209,85 @@ public sealed class DotnetDebugger : IAsyncDisposable
     }
 
     /// <summary>
+    /// Builds and launches a test project with VSTEST_HOST_DEBUG=1, parses the testhost PID
+    /// from stdout, then attaches to it. Returns the same (Pid, ProcessName) as AttachAsync.
+    /// </summary>
+    /// <param name="projectPath">Path to the xUnit .csproj or project directory.</param>
+    /// <param name="filter">Optional --filter expression (e.g. 'FullyQualifiedName~MyTest').</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<(uint Pid, string ProcessName)> LaunchTestAsync(
+        string projectPath,
+        string? filter = null,
+        CancellationToken ct = default)
+    {
+        await DisconnectAsync(ct);
+
+        // Step 1: dotnet build -c Debug
+        var buildPsi = new System.Diagnostics.ProcessStartInfo("dotnet",
+            $"build \"{projectPath}\" -c Debug")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = false,
+        };
+        using var buildProc = System.Diagnostics.Process.Start(buildPsi)!;
+        await buildProc.WaitForExitAsync(ct);
+        if (buildProc.ExitCode != 0)
+            throw new InvalidOperationException($"dotnet build failed with exit code {buildProc.ExitCode}");
+
+        // Step 2: Launch dotnet test with VSTEST_HOST_DEBUG=1
+        string testArgs = $"test \"{projectPath}\" --no-build";
+        if (!string.IsNullOrEmpty(filter))
+            testArgs += $" --filter \"{filter}\"";
+
+        var testPsi = new System.Diagnostics.ProcessStartInfo("dotnet", testArgs)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = false,
+            UseShellExecute = false,
+        };
+        testPsi.Environment["VSTEST_HOST_DEBUG"] = "1";
+
+        _dotnetTestProcess = System.Diagnostics.Process.Start(testPsi)!;
+
+        // Step 3: Parse testhost PID from stdout
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+        uint testhostPid = 0;
+        try
+        {
+            string? line;
+            while ((line = await _dotnetTestProcess.StandardOutput.ReadLineAsync(linkedCts.Token)) != null)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(line, @"Process Id:\s*(\d+)");
+                if (match.Success)
+                {
+                    testhostPid = uint.Parse(match.Groups[1].Value);
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            _dotnetTestProcess.Kill(entireProcessTree: true);
+            _dotnetTestProcess = null;
+            throw new InvalidOperationException(
+                "Failed to get testhost PID from dotnet test output within 25 seconds. " +
+                "Ensure the project is a valid xUnit test project.");
+        }
+
+        if (testhostPid == 0)
+        {
+            _dotnetTestProcess.Kill(entireProcessTree: true);
+            _dotnetTestProcess = null;
+            throw new InvalidOperationException("Failed to get testhost PID from dotnet test output.");
+        }
+
+        // Step 4: Attach to testhost — reuses all existing attach infrastructure
+        return await AttachAsync(testhostPid, ct);
+    }
+
+    /// <summary>
     /// Stops the debug session and terminates the debuggee if still running.
     /// Does NOT close the command channel so the debugger can be reused for a new session.
     /// </summary>
@@ -223,6 +305,12 @@ public sealed class DotnetDebugger : IAsyncDisposable
             _corDebug = null;
             _launchedPid = 0;
             _attachPid = 0;
+            // Kill the vstest runner if this was a test session
+            if (_dotnetTestProcess is { HasExited: false })
+            {
+                try { _dotnetTestProcess.Kill(entireProcessTree: true); } catch { }
+            }
+            _dotnetTestProcess = null;
             _loadedModules.Clear();
             _pendingBreakpoints.Clear();
             _activeBreakpoints.Clear();
