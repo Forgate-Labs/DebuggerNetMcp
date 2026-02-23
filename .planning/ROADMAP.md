@@ -90,7 +90,7 @@ Plans:
 **Milestone Goal:** Expand the debug engine to cover all major .NET patterns — structs, enums, nullable, closures, iterators, static fields, circular references, unhandled exceptions, multi-threading, attach, and reverse PDB lookup — with xUnit integration tests and complete documentation.
 
 - [x] **Phase 5: Type System** - Structs, enums, Nullable<T>, and static fields readable via debug_variables/debug_evaluate (completed 2026-02-23)
-- [x] **Phase 6: Closures, Iterators & Object Graph** - Lambda captures, yield return state machines, circular reference detection, computed properties (completed 2026-02-23)
+- [x] **Phase 6: Closures, Iterators & Object Graph** - Lambda captures, yield return state machines, circular reference detection, computed properties (completed 2026-02-23)
 - [ ] **Phase 7: Exceptions, Threading & Attach** - Unhandled exception events, first-chance notifications, multi-thread inspection, debug_attach by PID
 - [ ] **Phase 8: Stack Trace & dotnet test** - Reverse PDB lookup for readable stack frames, debug_launch for xUnit test processes
 - [ ] **Phase 9: Tests & Documentation** - xUnit integration tests covering all scenarios, README rewrite
@@ -139,7 +139,12 @@ Plans:
   4. `debug_stacktrace` returns frames for all active threads when called without a thread filter, or for a specific thread when given a thread ID
   5. `debug_pause` stops all threads in the process, not just the thread currently in the callback
   6. `debug_attach(pid)` connects to a running .NET process and returns state="attached" with process information
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Exception type/message extraction (TryReadExceptionInfo) + first-chance flag + double-reporting guard (EXCP-01, EXCP-02)
+- [ ] 07-02-PLAN.md — Multi-thread inspection: GetAllThreads + optional threadId on debug_variables/debug_stacktrace (THRD-01, THRD-02, THRD-03)
+- [ ] 07-03-PLAN.md — AttachAsync confirmation via TCS + HelloDebug sections 20-21 + live verification checkpoint (ATCH-01)
 
 ### Phase 8: Stack Trace & dotnet test
 **Goal**: Stack frames show human-readable source locations ("Program.cs:57") and Claude Code can debug xUnit test methods with breakpoints
@@ -173,6 +178,6 @@ Plans:
 | 4. MCP Server | v1.0 | 2/2 | Complete | 2026-02-23 |
 | 5. Type System | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 6. Closures, Iterators & Object Graph | 3/3 | Complete   | 2026-02-23 | - |
-| 7. Exceptions, Threading & Attach | v1.1 | 0/TBD | Not started | - |
+| 7. Exceptions, Threading & Attach | v1.1 | 0/3 | Not started | - |
 | 8. Stack Trace & dotnet test | v1.1 | 0/TBD | Not started | - |
 | 9. Tests & Documentation | v1.1 | 0/TBD | Not started | - |
