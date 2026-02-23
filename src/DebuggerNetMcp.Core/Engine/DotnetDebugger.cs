@@ -670,64 +670,31 @@ public sealed class DotnetDebugger : IAsyncDisposable
     private List<StackFrameInfo> GetStackFramesForThread(ICorDebugThread thread)
     {
         var frames = new List<StackFrameInfo>();
-        thread.EnumerateChains(out ICorDebugChainEnum chainEnum);
-        if (chainEnum is null) return frames;
-        var chains = new ICorDebugChain[1];
+        // Walk via GetActiveFrame + GetCaller — avoids EnumerateChains COM interop issues.
+        thread.GetActiveFrame(out ICorDebugFrame? current);
         int frameIndex = 0;
+        const int maxFrames = 64;
 
-        while (true)
+        while (current is not null && frameIndex < maxFrames)
         {
-            chainEnum.Next(1, chains, out uint chainFetched);
-            if (chainFetched == 0) break;
-            if (chains[0] is null) { frameIndex++; continue; }
-
-            chains[0].EnumerateFrames(out ICorDebugFrameEnum frameEnum);
-            if (frameEnum is null) { frameIndex++; continue; }
-            var frameArr = new ICorDebugFrame[1];
-
-            while (true)
+            try
             {
-                frameEnum.Next(1, frameArr, out uint frameFetched);
-                if (frameFetched == 0) break;
-
-                var frame = frameArr[0];
-                if (frame is null) { frameIndex++; continue; }
-                try
+                if (current is ICorDebugILFrame ilFrame)
                 {
-                    if (frame is ICorDebugILFrame ilFrame)
-                    {
-                        ilFrame.GetIP(out uint ip, out _);
-                        frame.GetFunction(out ICorDebugFunction fn);
-                        fn.GetToken(out uint methodToken);
-                        fn.GetModule(out ICorDebugModule module);
-
-                        uint nameLen = 512;
-                        IntPtr namePtr = Marshal.AllocHGlobal((int)(nameLen * 2));
-                        string dllPath;
-                        try
-                        {
-                            module.GetName(nameLen, out _, namePtr);
-                            dllPath = Marshal.PtrToStringUni(namePtr) ?? string.Empty;
-                        }
-                        finally
-                        {
-                            Marshal.FreeHGlobal(namePtr);
-                        }
-
-                        frames.Add(new StackFrameInfo(
-                            frameIndex++,
-                            $"0x{methodToken:X8}",
-                            null,
-                            null,
-                            (int)ip));
-                    }
-                    else
-                    {
-                        frameIndex++;
-                    }
+                    ilFrame.GetIP(out uint ip, out _);
+                    current.GetFunction(out ICorDebugFunction fn);
+                    fn.GetToken(out uint methodToken);
+                    frames.Add(new StackFrameInfo(frameIndex++, $"0x{methodToken:X8}", null, null, (int)ip));
                 }
-                catch { frameIndex++; }
+                else
+                {
+                    frameIndex++; // native frame — skip
+                }
+
+                current.GetCaller(out ICorDebugFrame? caller);
+                current = caller;
             }
+            catch { break; }
         }
         return frames;
     }
