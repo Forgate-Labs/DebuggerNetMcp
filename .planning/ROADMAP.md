@@ -74,7 +74,11 @@ Plans:
   1. `dotnet run --project DebuggerNetMcp.Mcp` starts and accepts MCP requests over stdio
   2. All 14 tools (debug_launch, debug_attach, debug_set_breakpoint, debug_remove_breakpoint, debug_continue, debug_step_over, debug_step_into, debug_step_out, debug_variables, debug_evaluate, debug_stacktrace, debug_pause, debug_disconnect, debug_status) are callable and return structured results
   3. HelloDebug test app exposes primitive variables, complex objects, arrays, and a caught exception for tool verification
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Add ModelContextProtocol package + Program.cs MCP host + verify HelloDebug (MCP-01, TEST-01)
+- [ ] 04-02-PLAN.md — DebuggerTools.cs: 14 [McpServerTool] methods wrapping DotnetDebugger (MCP-02)
 
 ### Phase 5: Tests + Docs
 **Goal**: Integration tests pass end-to-end; README describes the new architecture and how to build, install, and use the server
@@ -92,6 +96,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-02-22 |
 | 2. Interop + Engine Foundation | 3/3 | Complete   | 2026-02-22 |
-| 3. Debug Engine | 4/5 | In Progress|  |
-| 4. MCP Server | 0/TBD | Not started | - |
+| 3. Debug Engine | 5/5 | Complete   | 2026-02-22 |
+| 4. MCP Server | 0/2 | Not started | - |
 | 5. Tests + Docs | 0/TBD | Not started | - |
