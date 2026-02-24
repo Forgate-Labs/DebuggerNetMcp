@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Milestone v1.1 — Phase 8: Stack Trace & dotnet test
+**Current focus:** Milestone v1.1 — Phase 10: Tech Debt Cleanup
 
 ## Current Position
 
-Phase: 9 of 9 (Tests & Documentation) — COMPLETE
-Plan: 3 of 3 complete
-Status: Phase 9 complete — README.md rewritten with C#/ICorDebug architecture, all 15 tools documented, DBGSHIM_PATH documented
-Last activity: 2026-02-23 — 09-03 README.md complete rewrite; zero stale Python/netcoredbg references
+Phase: 10 of 10 (Tech Debt Cleanup) — IN PROGRESS
+Plan: 1 of 2 complete
+Status: Phase 10 Plan 01 complete — repo hygiene: portable wrapper, CMake removed, native/ deleted, TYPE-04 recorded
+Last activity: 2026-02-24 — 10-01 repo hygiene and build system cleanup complete
 
-Progress: [██████████] 100% (9/9 phases complete; all plans done)
+Progress: [██████████] 95% (10 phases; plan 1/2 of phase 10 done)
 
 ## Performance Metrics
 
@@ -41,6 +41,7 @@ Progress: [██████████] 100% (9/9 phases complete; all plans 
 | Phase 08-stack-trace-and-dotnet-test P02 | 2 | 2 tasks | 3 files |
 | Phase 09-tests-documentation P01 | 2 | 2 tasks | 5 files |
 | Phase 09-tests-documentation P02 | 7 | 2 tasks | 2 files |
+| Phase 10-tech-debt P01 | 95 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,13 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 09-tests-documentation]: README does not mention netcoredbg/Python/DAP — fully eliminated in Phase 1-4; ASCII diagram shows direct ICorDebug architecture
 - [Phase 09-tests-documentation-02]: DrainToExit must handle ExceptionEvent with ContinueAsync — HelloDebug Section 21 stops process with unhandled exception before ExitedEvent
 - [Phase 09-tests-documentation-02]: Attach test uses retry loop (10 x 30ms) instead of fixed delay — HelloDebug exits in ~215ms, fixed 800ms delay guarantees process is already dead
+- [Phase 10-01]: debugger-net-mcp.sh exports DOTNET_ROOT with HOME/.dotnet fallback — needed because Claude spawns MCP process without shell environment
+- [Phase 10-01]: install.sh registers wrapper directly — no env var passthrough needed (wrapper owns all env setup)
+- [Phase 10-01]: native/ CMake project dead since Phase 3 replaced ptrace_wrapper.c with ICorDebug approach
+
+### Roadmap Evolution
+
+- Phase 10 added: Corrija os debitos tecnicos, todos que ficaram em aberto
 
 ### Blockers/Concerns
 
@@ -96,6 +104,6 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 09-02-PLAN.md — 14 integration tests passing; DebuggerIntegrationTests + DebuggerAdvancedTests
+Last session: 2026-02-24
+Stopped at: Completed 10-01-PLAN.md — repo hygiene: portable wrapper, CMake removed, native/ deleted, TYPE-04 recorded
 Resume file: None

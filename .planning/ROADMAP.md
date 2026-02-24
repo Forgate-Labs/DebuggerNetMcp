@@ -190,13 +190,13 @@ Plans:
 | 7. Exceptions, Threading & Attach | 3/3 | Complete   | 2026-02-23 | - |
 | 8. Stack Trace & dotnet test | 2/2 | Complete   | 2026-02-23 | - |
 | 9. Tests & Documentation | 3/3 | Complete   | 2026-02-23 | - |
-| 10. Technical Debt | - | 0/2 | Planning | - |
+| 10. Technical Debt | 1/2 | In Progress|  | - |
 
 ### Phase 10: Corrija os debitos tecnicos, todos que ficaram em aberto
 
 **Goal:** All v1.1 technical debt is resolved — build is clean (no dead CMake step), install.sh works correctly on kernel 6.12+ via the strace wrapper, untracked project files are committed, and missing automated tests (THRD-03, DTEST-02) now have regression coverage
 **Depends on:** Phase 9
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 10-01-PLAN.md — Repo hygiene: commit untracked files, fix install.sh/strace wrapper, remove dead native library, fix SUMMARY frontmatter (INFRA-04, INFRA-05, NATIVE-01, NATIVE-02)
