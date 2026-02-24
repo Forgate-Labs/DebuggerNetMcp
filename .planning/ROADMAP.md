@@ -93,7 +93,7 @@ Plans:
 - [x] **Phase 6: Closures, Iterators & Object Graph** - Lambda captures, yield return state machines, circular reference detection, computed properties (completed 2026-02-23)
 - [x] **Phase 7: Exceptions, Threading & Attach** - Unhandled exception events, first-chance notifications, multi-thread inspection, debug_attach by PID (completed 2026-02-23)
 - [x] **Phase 8: Stack Trace & dotnet test** - Reverse PDB lookup for readable stack frames, debug_launch for xUnit test processes (completed 2026-02-23)
-- [x] **Phase 9: Tests & Documentation** - xUnit integration tests covering all scenarios, README rewrite (completed 2026-02-23)
+- [x] **Phase 9: Tests & Documentation** - xUnit integration tests covering all scenarios, README rewrite (completed 2026-02-23)
 
 ### Phase 5: Type System
 **Goal**: Users can inspect struct, enum, Nullable<T>, and static field values via debug_variables and debug_evaluate — the type system reads correctly for all .NET value types
@@ -190,3 +190,14 @@ Plans:
 | 7. Exceptions, Threading & Attach | 3/3 | Complete   | 2026-02-23 | - |
 | 8. Stack Trace & dotnet test | 2/2 | Complete   | 2026-02-23 | - |
 | 9. Tests & Documentation | 3/3 | Complete   | 2026-02-23 | - |
+| 10. Technical Debt | - | 0/2 | Planning | - |
+
+### Phase 10: Corrija os debitos tecnicos, todos que ficaram em aberto
+
+**Goal:** All v1.1 technical debt is resolved — build is clean (no dead CMake step), install.sh works correctly on kernel 6.12+ via the strace wrapper, untracked project files are committed, and missing automated tests (THRD-03, DTEST-02) now have regression coverage
+**Depends on:** Phase 9
+**Plans:** 2 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — Repo hygiene: commit untracked files, fix install.sh/strace wrapper, remove dead native library, fix SUMMARY frontmatter (INFRA-04, INFRA-05, NATIVE-01, NATIVE-02)
+- [ ] 10-02-PLAN.md — Test improvements: deduplicate helpers into DebuggerTestHelpers.cs, add THRD-03 and DTEST-02 automated tests (THRD-03, DTEST-02, TEST-03, TEST-09)
