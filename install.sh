@@ -17,19 +17,12 @@ echo "==> Registering debugger-net MCP server..."
 "$CLAUDE_BIN" mcp remove debugger-net -s user 2>/dev/null || true
 
 # Register with user scope, stdio transport
-# -e passes environment variables to the spawned dotnet process
-# -- separates mcp add options from the command to run
-# --no-build prevents dotnet from rebuilding on each MCP invocation (build.sh handles builds)
+# The wrapper script handles DOTNET_ROOT, strace workaround, and logging
 "$CLAUDE_BIN" mcp add \
     -s user \
-    -e DOTNET_ROOT="${DOTNET_ROOT:-${HOME}/.dotnet}" \
-    -e LD_LIBRARY_PATH="$SCRIPT_DIR/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
     -- \
     debugger-net \
-    dotnet run \
-        --project "$SCRIPT_DIR/src/DebuggerNetMcp.Mcp" \
-        --no-build \
-        -c Release
+    "$SCRIPT_DIR/debugger-net-mcp.sh"
 
 echo "==> MCP server 'debugger-net' registered at user scope."
 echo "    Restart Claude Code to pick up the new registration."
