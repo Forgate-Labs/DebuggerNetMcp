@@ -56,6 +56,8 @@ internal sealed partial class ManagedCallbackHandler
 
     internal void ClearKnownThreadIds() => _knownThreadIds.Clear();
 
+    internal void ClearBreakpointRegistry() => BreakpointTokenToId.Clear();
+
     // Controls whether first-chance exceptions produce a stopping ExceptionEvent.
     // Set by DotnetDebugger.LaunchAsync before launching. Default false (continue silently).
     internal bool NotifyFirstChanceExceptions { get; set; }
@@ -83,6 +85,17 @@ internal sealed partial class ManagedCallbackHandler
     /// Set before forcibly terminating a previous session so the new session's channel is not closed.
     /// </summary>
     internal bool SuppressExitProcess { get; set; }
+
+    // Session ID incremented each time a new debug session starts (LaunchAsync / AttachAsync).
+    // ExitProcess callback captures the current session ID; if it has changed by the time
+    // ExitProcess fires, the callback belongs to a stale session and does not close the new channel.
+    private int _currentSessionId;
+    internal int CurrentSessionId => _currentSessionId;
+
+    internal void BeginNewSession()
+    {
+        System.Threading.Interlocked.Increment(ref _currentSessionId);
+    }
 
     // -----------------------------------------------------------------------
     // ICorDebugManagedCallback — 26 methods
@@ -172,8 +185,13 @@ internal sealed partial class ManagedCallbackHandler
         ICorDebugEval pEval)
         => pAppDomain.Continue(0);
 
+    // Session ID captured at CreateProcess — compared in ExitProcess to detect stale callbacks.
+    private int _processSessionId;
+
     public void CreateProcess(ICorDebugProcess pProcess)
     {
+        // Capture the session ID at process creation so ExitProcess can validate it later.
+        _processSessionId = _currentSessionId;
         Process = pProcess;
         OnProcessCreated?.Invoke(pProcess);
 
@@ -200,6 +218,11 @@ internal sealed partial class ManagedCallbackHandler
             SuppressExitProcess = false;
             return;
         }
+        // Session ID guard: if the session has advanced since CreateProcess, this ExitProcess
+        // belongs to a stale session (e.g., old attach session firing after a new LaunchTestAsync).
+        // Suppress channel completion to prevent closing the new session's event channel.
+        if (_processSessionId != _currentSessionId)
+            return;
         _events.TryWrite(new ExitedEvent(0));
         _events.TryComplete();
     }

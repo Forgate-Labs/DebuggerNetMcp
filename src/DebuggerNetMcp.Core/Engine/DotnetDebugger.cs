@@ -38,6 +38,11 @@ public sealed class DotnetDebugger : IAsyncDisposable
     // dotnet test vstest runner process (kept alive while testhost is being debugged)
     private System.Diagnostics.Process? _dotnetTestProcess;
 
+    // PID of the vstest testhost process (spawned by dotnet test with VSTEST_HOST_DEBUG=1).
+    // Stored separately because the testhost is NOT a Linux child of _dotnetTestProcess,
+    // so Kill(entireProcessTree: true) on the runner does not kill it. Must be killed by PID.
+    private uint _testhostPid;
+
     // Pending breakpoints: set before the module loads
     private readonly List<PendingBreakpoint> _pendingBreakpoints = new();
 
@@ -46,6 +51,13 @@ public sealed class DotnetDebugger : IAsyncDisposable
 
     // Loaded modules: module name -> ICorDebugModule
     private readonly Dictionary<string, ICorDebugModule> _loadedModules = new(StringComparer.OrdinalIgnoreCase);
+
+    // Lock protecting _pendingBreakpoints and _loadedModules.
+    // These are accessed from two threads: the debug thread (SetBreakpointAsync) and the
+    // ICorDebug callback thread (LoadModule/OnModuleLoaded). A lock is required to prevent
+    // the TOCTOU race where LoadModule fires between the "module not found" check and the
+    // "add to pending" step in SetBreakpointAsync, causing the pending BP to never activate.
+    private readonly object _bpLock = new();
 
     public DotnetDebugger(string? dbgShimPath = null)
     {
@@ -113,6 +125,7 @@ public sealed class DotnetDebugger : IAsyncDisposable
             SingleReader = false,
             AllowSynchronousContinuations = false
         });
+        _callbackHandler.BeginNewSession();
         _callbackHandler.UpdateEventWriter(_eventChannel.Writer);
 
         // Step 1: dotnet build -c Debug
@@ -165,6 +178,10 @@ public sealed class DotnetDebugger : IAsyncDisposable
             _callbackHandler.SuppressExitProcess = true;
             await DisconnectAsync(ct);
         }
+
+        // Increment session ID so any in-flight ExitProcess from a prior session is ignored.
+        // The session ID is captured in CreateProcess and validated in ExitProcess.
+        _callbackHandler.BeginNewSession();
 
         var attachConfirmedTcs = new TaskCompletionSource<uint>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -229,6 +246,11 @@ public sealed class DotnetDebugger : IAsyncDisposable
             SingleReader = false,
             AllowSynchronousContinuations = false
         });
+        // BeginNewSession increments the session ID before UpdateEventWriter.
+        // Any in-flight ExitProcess from a prior attach session will see a mismatched session ID
+        // and skip TryComplete — preventing premature channel closure.
+        // The session ID is captured in CreateProcess (for the new testhost) and validated in ExitProcess.
+        _callbackHandler.BeginNewSession();
         _callbackHandler.UpdateEventWriter(_eventChannel.Writer);
 
         // Stop at CreateProcess so the caller can set breakpoints before test execution begins.
@@ -258,6 +280,11 @@ public sealed class DotnetDebugger : IAsyncDisposable
             UseShellExecute = false,
         };
         testPsi.Environment["VSTEST_HOST_DEBUG"] = "1";
+        // Suppress the Debugger.Break() that testhost calls after its spin loop exits.
+        // Without this, Break() delivers a stopping Break-callback that halts the process;
+        // our Break handler writes StoppedEvent("pause") and does NOT call Continue,
+        // leaving the testhost suspended and unable to load test assemblies or connect to vstest.
+        testPsi.Environment["VSTEST_DEBUG_NOBP"] = "1";
 
         _dotnetTestProcess = System.Diagnostics.Process.Start(testPsi)!;
 
@@ -295,6 +322,18 @@ public sealed class DotnetDebugger : IAsyncDisposable
             throw new InvalidOperationException("Failed to get testhost PID from dotnet test output.");
         }
 
+        // Store testhost PID for explicit cleanup — see DisconnectAsync.
+        _testhostPid = testhostPid;
+
+        // Drain remaining stdout in background to prevent pipe buffer filling up and blocking
+        // the vstest runner process. If the vstest runner blocks on stdout write, it cannot
+        // communicate with the testhost via its control channel, causing the testhost to stall.
+        var drainProc = _dotnetTestProcess;
+        _ = Task.Run(async () =>
+        {
+            try { while (await drainProc.StandardOutput.ReadLineAsync() != null) { } } catch { }
+        });
+
         // Step 4: Attach to testhost — reuses all existing attach infrastructure
         var (pid, processName) = await AttachAsync(testhostPid, ct);
 
@@ -313,6 +352,12 @@ public sealed class DotnetDebugger : IAsyncDisposable
     /// </summary>
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
+        // Use a TCS so we WAIT for the debug thread to actually execute the disconnect action,
+        // not just for the action to be written to the command channel.
+        // Without TCS, DisconnectAsync returns before _process=null is set, creating a race
+        // where a subsequent AttachAsync sees _process != null from the old session and re-disconnects,
+        // or where the new session's ContinueAsync runs _process?.Continue(0) on null.
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await DispatchAsync(() =>
         {
             try
@@ -331,13 +376,31 @@ public sealed class DotnetDebugger : IAsyncDisposable
                 try { _dotnetTestProcess.Kill(entireProcessTree: true); } catch { }
             }
             _dotnetTestProcess = null;
-            _loadedModules.Clear();
-            _pendingBreakpoints.Clear();
+            // Kill the testhost by PID: the testhost is NOT in the Linux process tree of
+            // _dotnetTestProcess (vstest spawns it with a different parent), so Kill(entireProcessTree)
+            // above does NOT reach it. Kill it explicitly to prevent zombie testhost accumulation.
+            if (_testhostPid != 0)
+            {
+                try
+                {
+                    System.Diagnostics.Process.GetProcessById((int)_testhostPid).Kill();
+                }
+                catch { /* already exited */ }
+                _testhostPid = 0;
+            }
+            lock (_bpLock)
+            {
+                _loadedModules.Clear();
+                _pendingBreakpoints.Clear();
+            }
             _activeBreakpoints.Clear();
             _nextBreakpointId = 1;
             _callbackHandler.NotifyFirstChanceExceptions = false;
             _callbackHandler.ClearKnownThreadIds();
+            _callbackHandler.ClearBreakpointRegistry();
+            tcs.TrySetResult();
         }, ct);
+        await tcs.Task.WaitAsync(ct);
     }
 
     /// <summary>
@@ -482,12 +545,14 @@ public sealed class DotnetDebugger : IAsyncDisposable
         // DebugActiveProcess queues the initial CreateProcess / LoadModule / CreateThread callbacks.
         if (_launchedPid != 0)
         {
-            // Launch path: process was created suspended; Continue(0) lets it run past the
-            // initial CreateProcess event (StopAtCreateProcess may pause it again immediately).
+            // Launch path: DebugActiveProcess connects the debugger to the already-running process.
+            // Do NOT call proc.Continue(0) here — the CreateProcess callback already handles it:
+            //   StopAtCreateProcess=true  → CreateProcess writes StoppedEvent, does NOT call Continue
+            //   StopAtCreateProcess=false → CreateProcess calls pProcess.Continue(0)
+            // Calling Continue here would resume a process that CreateProcess intentionally stopped.
             try
             {
-                _corDebug.DebugActiveProcess(_launchedPid, 0, out ICorDebugProcess proc);
-                proc.Continue(0);
+                _corDebug.DebugActiveProcess(_launchedPid, 0, out _);
             }
             catch { /* ignore — ICorDebug may deliver events automatically */ }
         }
@@ -521,20 +586,23 @@ public sealed class DotnetDebugger : IAsyncDisposable
             Marshal.FreeHGlobal(namePtr);
         }
 
-        _loadedModules[moduleName] = module;
-
-        // Resolve any pending breakpoints for this module
-        for (int i = _pendingBreakpoints.Count - 1; i >= 0; i--)
+        lock (_bpLock)
         {
-            var pending = _pendingBreakpoints[i];
-            if (moduleName.EndsWith(pending.DllName, StringComparison.OrdinalIgnoreCase))
+            _loadedModules[moduleName] = module;
+
+            // Resolve any pending breakpoints for this module
+            for (int i = _pendingBreakpoints.Count - 1; i >= 0; i--)
             {
-                try
+                var pending = _pendingBreakpoints[i];
+                if (moduleName.EndsWith(pending.DllName, StringComparison.OrdinalIgnoreCase))
                 {
-                    ResolveBreakpoint(module, pending.Id, pending.MethodToken, pending.ILOffset);
-                    _pendingBreakpoints.RemoveAt(i);
+                    try
+                    {
+                        ResolveBreakpoint(module, pending.Id, pending.MethodToken, pending.ILOffset);
+                        _pendingBreakpoints.RemoveAt(i);
+                    }
+                    catch { /* keep pending — module may load again later */ }
                 }
-                catch { /* log and keep pending */ }
             }
         }
     }
@@ -589,25 +657,34 @@ public sealed class DotnetDebugger : IAsyncDisposable
 
                 string dllName = Path.GetFileName(dllPath);
 
-                // Look for the loaded module
+                // Lock protects _loadedModules and _pendingBreakpoints against the LoadModule
+                // callback thread. Without the lock, a TOCTOU race can cause the BP to never activate:
+                //   debug thread: reads _loadedModules (miss) → context switch
+                //   callback thread: LoadModule fires → adds to _loadedModules → checks pending (empty)
+                //   debug thread: adds to _pendingBreakpoints → BP orphaned (no activation ever)
                 ICorDebugModule? module = null;
-                foreach (var kvp in _loadedModules)
+                lock (_bpLock)
                 {
-                    if (kvp.Key.EndsWith(dllName, StringComparison.OrdinalIgnoreCase))
+                    foreach (var kvp in _loadedModules)
                     {
-                        module = kvp.Value;
-                        break;
+                        if (kvp.Key.EndsWith(dllName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            module = kvp.Value;
+                            break;
+                        }
+                    }
+
+                    if (module is null)
+                    {
+                        // Module not loaded yet — queue as pending.
+                        // If LoadModule fires after this lock is released, it will find the pending BP.
+                        _pendingBreakpoints.Add(new PendingBreakpoint(id, dllName, methodToken, ilOffset));
                     }
                 }
 
                 if (module is not null)
                 {
                     ResolveBreakpoint(module, id, methodToken, ilOffset);
-                }
-                else
-                {
-                    // Module not loaded yet — queue as pending
-                    _pendingBreakpoints.Add(new PendingBreakpoint(id, dllName, methodToken, ilOffset));
                 }
 
                 tcs.SetResult(id);
@@ -714,10 +791,17 @@ public sealed class DotnetDebugger : IAsyncDisposable
     /// </summary>
     public async Task ContinueAsync(CancellationToken ct = default)
     {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await DispatchAsync(() =>
         {
-            _process?.Continue(0);
+            try
+            {
+                _process?.Continue(0);
+                tcs.TrySetResult();
+            }
+            catch (Exception ex) { tcs.TrySetException(ex); }
         }, ct);
+        await tcs.Task.WaitAsync(ct);
     }
 
     /// <summary>

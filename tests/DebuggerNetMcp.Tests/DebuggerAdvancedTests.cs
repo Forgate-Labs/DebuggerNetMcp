@@ -75,6 +75,60 @@ public class DebuggerAdvancedTests(DebuggerFixture fixture)
     }
 
     [Fact]
+    public async Task PauseAsync_SuspendsAllThreads_NoEventAfterPause()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await Dbg.LaunchAsync(HelloDebugProject, HelloDebugDll, ct: cts.Token);
+        await Dbg.ContinueAsync(cts.Token); // let process run past CreateProcess stop
+
+        await Task.Delay(50, cts.Token);   // give it time to be "running"
+        await Dbg.PauseAsync(cts.Token);   // ICorDebug Stop(0) — synchronous suspend all managed threads
+
+        // After pause: process is stopped; inspection APIs must work without errors
+        var allThreads = await Dbg.GetAllThreadStackTracesAsync(cts.Token);
+        Assert.NotEmpty(allThreads); // at least main thread visible
+
+        // Resume and drain to exit
+        await Dbg.ContinueAsync(cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
+        await Dbg.DisconnectAsync(cts.Token);
+    }
+
+    [Fact]
+    public async Task LaunchTestAsync_BreakpointInFact_HitsWithLocals()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+        // The test project is the same project running this test
+        // AppContext.BaseDirectory = tests/DebuggerNetMcp.Tests/bin/Debug/net10.0/
+        // 3 levels up reaches tests/DebuggerNetMcp.Tests/ (the project directory)
+        var testProject = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
+
+        // The test assembly DLL is already compiled in the test output directory
+        var testsDll = Path.Combine(AppContext.BaseDirectory, "DebuggerNetMcp.Tests.dll");
+
+        // Filter: only run AddTwoNumbers_ReturnsCorrectSum — CRITICAL to prevent recursive test spawning
+        await Dbg.LaunchTestAsync(testProject, "AddTwoNumbers_ReturnsCorrectSum", cts.Token);
+
+        // Set breakpoint on "int result = a + b;" line 11 in MathTests.cs
+        await Dbg.SetBreakpointAsync(testsDll, "MathTests.cs", 11, cts.Token);
+        await Dbg.ContinueAsync(cts.Token);
+
+        var hit = await DebuggerTestHelpers.WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
+        Assert.NotNull(hit);
+
+        var locals = await Dbg.GetLocalsAsync(0, cts.Token);
+        var aVar = locals.FirstOrDefault(v => v.Name == "a");
+        Assert.NotNull(aVar);
+        Assert.Equal("21", aVar.Value);
+
+        await Dbg.ContinueAsync(cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
+        await Dbg.DisconnectAsync(cts.Token);
+    }
+
+    [Fact]
     public async Task AttachAsync_RunningProcess_AttachesSuccessfully()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
