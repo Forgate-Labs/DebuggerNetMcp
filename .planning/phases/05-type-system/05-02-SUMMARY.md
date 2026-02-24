@@ -21,6 +21,8 @@ decisions:
   - "Pass nullable ICorDebugFrame? to GetStaticFieldValue — allows non-thread-static fields to work without frame context"
   - "Static field scan in GetLocalsAsync is best-effort (wrapped in try/catch) — never breaks existing local variable listing"
   - "EvaluateAsync dot-notation lookup is highest priority — runs before state-machine and IL-local paths"
+requirements_completed:
+  - TYPE-04
 metrics:
   duration_seconds: 179
   completed_date: "2026-02-23"
