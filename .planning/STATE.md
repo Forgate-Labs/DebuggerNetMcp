@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 10 of 10 (Tech Debt Cleanup) — IN PROGRESS
-Plan: 1 of 2 complete
-Status: Phase 10 Plan 01 complete — repo hygiene: portable wrapper, CMake removed, native/ deleted, TYPE-04 recorded
-Last activity: 2026-02-24 — 10-01 repo hygiene and build system cleanup complete
+Phase: 10 of 10 (Tech Debt Cleanup) — COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 10 Plan 02 complete — test infrastructure: DebuggerTestHelpers, THRD-03, DTEST-02, multi-session ICorDebug fixes
+Last activity: 2026-02-24 — 10-02 advanced tests and multi-session stability complete
 
-Progress: [██████████] 95% (10 phases; plan 1/2 of phase 10 done)
+Progress: [██████████] 100% (10 phases; plan 2/2 of phase 10 done)
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [██████████] 95% (10 phases; plan 1/2 of phase 10 
 | Phase 09-tests-documentation P01 | 2 | 2 tasks | 5 files |
 | Phase 09-tests-documentation P02 | 7 | 2 tasks | 2 files |
 | Phase 10-tech-debt P01 | 95 | 3 tasks | 5 files |
+| Phase 10-tech-debt P02 | ~180 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 10-01]: debugger-net-mcp.sh exports DOTNET_ROOT with HOME/.dotnet fallback — needed because Claude spawns MCP process without shell environment
 - [Phase 10-01]: install.sh registers wrapper directly — no env var passthrough needed (wrapper owns all env setup)
 - [Phase 10-01]: native/ CMake project dead since Phase 3 replaced ptrace_wrapper.c with ICorDebug approach
+- [Phase 10-02]: VSTEST_DEBUG_NOBP=1 required alongside VSTEST_HOST_DEBUG=1 — testhost calls Debugger.Break() after spin-loop, our Break callback stops process without Continue
+- [Phase 10-02]: Session ID tracking (_currentSessionId/_processSessionId) in ManagedCallbackHandler — stale ExitProcess from prior attach must not close new session channel
+- [Phase 10-02]: _testhostPid tracked and killed explicitly — testhost NOT in Linux process tree of _dotnetTestProcess
+- [Phase 10-02]: proc.Continue(0) removed from OnRuntimeStarted launch path — CreateProcess callback owns Continue semantics (StopAtCreateProcess flag)
 
 ### Roadmap Evolution
 
@@ -105,5 +110,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 10-01-PLAN.md — repo hygiene: portable wrapper, CMake removed, native/ deleted, TYPE-04 recorded
+Stopped at: Completed 10-02-PLAN.md — advanced tests (THRD-03, DTEST-02), DebuggerTestHelpers, multi-session fixes
 Resume file: None

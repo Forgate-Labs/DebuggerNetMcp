@@ -196,8 +196,8 @@ Plans:
 
 **Goal:** All v1.1 technical debt is resolved — build is clean (no dead CMake step), install.sh works correctly on kernel 6.12+ via the strace wrapper, untracked project files are committed, and missing automated tests (THRD-03, DTEST-02) now have regression coverage
 **Depends on:** Phase 9
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed — COMPLETE
 
 Plans:
-- [ ] 10-01-PLAN.md — Repo hygiene: commit untracked files, fix install.sh/strace wrapper, remove dead native library, fix SUMMARY frontmatter (INFRA-04, INFRA-05, NATIVE-01, NATIVE-02)
-- [ ] 10-02-PLAN.md — Test improvements: deduplicate helpers into DebuggerTestHelpers.cs, add THRD-03 and DTEST-02 automated tests (THRD-03, DTEST-02, TEST-03, TEST-09)
+- [x] 10-01-PLAN.md — Repo hygiene: commit untracked files, fix install.sh/strace wrapper, remove dead native library, fix SUMMARY frontmatter (INFRA-04, INFRA-05, NATIVE-01, NATIVE-02)
+- [x] 10-02-PLAN.md — Test improvements: deduplicate helpers into DebuggerTestHelpers.cs, add THRD-03 and DTEST-02 automated tests (THRD-03, DTEST-02, TEST-03, TEST-09)
