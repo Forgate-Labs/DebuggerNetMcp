@@ -17,39 +17,6 @@ public class DebuggerIntegrationTests(DebuggerFixture fixture)
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..",
             "HelloDebug", "bin", "Debug", "net10.0", "HelloDebug.dll"));
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Drains events until the requested type arrives. Throws if process exits first.
-    /// </summary>
-    private static async Task<T> WaitForSpecificEvent<T>(
-        DotnetDebugger dbg, CancellationToken ct) where T : DebugEvent
-    {
-        while (true)
-        {
-            var ev = await dbg.WaitForEventAsync(ct);
-            if (ev is T typedEv) return typedEv;
-            if (ev is ExitedEvent) throw new Exception($"Process exited before {typeof(T).Name}");
-            // OutputEvent, StoppedEvent — keep draining
-        }
-    }
-
-    /// <summary>
-    /// Drains all events (continuing on breakpoint/stopped/exception) until ExitedEvent.
-    /// HelloDebug Section 21 throws an unhandled exception which stops the process;
-    /// we must call ContinueAsync on ExceptionEvent so the process proceeds to exit.
-    /// </summary>
-    private static async Task DrainToExit(DotnetDebugger dbg, CancellationToken ct)
-    {
-        while (true)
-        {
-            var ev = await dbg.WaitForEventAsync(ct);
-            if (ev is ExitedEvent) return;
-            if (ev is BreakpointHitEvent or StoppedEvent or ExceptionEvent)
-                await dbg.ContinueAsync(ct); // keep process running toward exit
-        }
-    }
-
     // ─── Tests ───────────────────────────────────────────────────────────────
 
     [Fact]
@@ -66,7 +33,7 @@ public class DebuggerIntegrationTests(DebuggerFixture fixture)
         await Dbg.ContinueAsync(cts.Token);
 
         // Wait for our breakpoint
-        var hit = await WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
+        var hit = await DebuggerTestHelpers.WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
         Assert.Equal(bpId, hit.BreakpointId);
 
         // Inspect locals — counter should be visible with value "0"
@@ -77,7 +44,7 @@ public class DebuggerIntegrationTests(DebuggerFixture fixture)
 
         // Let the process finish
         await Dbg.ContinueAsync(cts.Token);
-        await DrainToExit(Dbg, cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
 
         await Dbg.DisconnectAsync(cts.Token);
     }
@@ -96,18 +63,18 @@ public class DebuggerIntegrationTests(DebuggerFixture fixture)
         await Dbg.ContinueAsync(cts.Token);
 
         // Wait for breakpoint hit
-        await WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
+        await DebuggerTestHelpers.WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
 
         // Step over — advances to next line
         await Dbg.StepOverAsync(cts.Token);
-        await WaitForSpecificEvent<StoppedEvent>(Dbg, cts.Token);
+        await DebuggerTestHelpers.WaitForSpecificEvent<StoppedEvent>(Dbg, cts.Token);
 
         // counter variable should still be visible after the step
         var locals = await Dbg.GetLocalsAsync(0, cts.Token);
         Assert.Contains(locals, v => v.Name == "counter");
 
         await Dbg.ContinueAsync(cts.Token);
-        await DrainToExit(Dbg, cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
 
         await Dbg.DisconnectAsync(cts.Token);
     }
@@ -126,18 +93,18 @@ public class DebuggerIntegrationTests(DebuggerFixture fixture)
         await Dbg.ContinueAsync(cts.Token);
 
         // Wait for breakpoint hit on Fibonacci call
-        await WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
+        await DebuggerTestHelpers.WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
 
         // Step into Fibonacci()
         await Dbg.StepIntoAsync(cts.Token);
-        await WaitForSpecificEvent<StoppedEvent>(Dbg, cts.Token);
+        await DebuggerTestHelpers.WaitForSpecificEvent<StoppedEvent>(Dbg, cts.Token);
 
         // Should now be inside Fibonacci — stack must have at least 2 frames
         var frames = await Dbg.GetStackTraceAsync(0, cts.Token);
         Assert.True(frames.Count >= 2, $"Expected >= 2 frames after StepInto, got {frames.Count}");
 
         await Dbg.ContinueAsync(cts.Token);
-        await DrainToExit(Dbg, cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
 
         await Dbg.DisconnectAsync(cts.Token);
     }
@@ -153,7 +120,7 @@ public class DebuggerIntegrationTests(DebuggerFixture fixture)
         await Dbg.ContinueAsync(cts.Token);
 
         // DrainToExit will consume OutputEvents and stop when ExitedEvent arrives
-        await DrainToExit(Dbg, cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
 
         await Dbg.DisconnectAsync(cts.Token);
     }

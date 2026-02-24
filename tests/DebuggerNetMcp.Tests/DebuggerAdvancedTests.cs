@@ -17,39 +17,6 @@ public class DebuggerAdvancedTests(DebuggerFixture fixture)
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..",
             "HelloDebug", "bin", "Debug", "net10.0", "HelloDebug.dll"));
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Drains events until the requested type arrives. Throws if process exits first.
-    /// </summary>
-    private static async Task<T> WaitForSpecificEvent<T>(
-        DotnetDebugger dbg, CancellationToken ct) where T : DebugEvent
-    {
-        while (true)
-        {
-            var ev = await dbg.WaitForEventAsync(ct);
-            if (ev is T typedEv) return typedEv;
-            if (ev is ExitedEvent) throw new Exception($"Process exited before {typeof(T).Name}");
-            // OutputEvent, StoppedEvent — keep draining
-        }
-    }
-
-    /// <summary>
-    /// Drains all events (continuing on breakpoint/stopped/exception) until ExitedEvent.
-    /// HelloDebug Section 21 throws an unhandled exception which stops the process;
-    /// we must call ContinueAsync on ExceptionEvent so the process proceeds to exit.
-    /// </summary>
-    private static async Task DrainToExit(DotnetDebugger dbg, CancellationToken ct)
-    {
-        while (true)
-        {
-            var ev = await dbg.WaitForEventAsync(ct);
-            if (ev is ExitedEvent) return;
-            if (ev is BreakpointHitEvent or StoppedEvent or ExceptionEvent)
-                await dbg.ContinueAsync(ct); // keep process running toward exit
-        }
-    }
-
     // ─── Tests ───────────────────────────────────────────────────────────────
 
     [Fact]
@@ -63,7 +30,7 @@ public class DebuggerAdvancedTests(DebuggerFixture fixture)
         await Dbg.ContinueAsync(cts.Token);
 
         // Wait for the unhandled exception event
-        var exEv = await WaitForSpecificEvent<ExceptionEvent>(Dbg, cts.Token);
+        var exEv = await DebuggerTestHelpers.WaitForSpecificEvent<ExceptionEvent>(Dbg, cts.Token);
 
         Assert.True(exEv.IsUnhandled, "Expected IsUnhandled == true for Section 21 exception");
         Assert.Contains("InvalidOperationException", exEv.ExceptionType);
@@ -73,7 +40,7 @@ public class DebuggerAdvancedTests(DebuggerFixture fixture)
         await Dbg.ContinueAsync(cts.Token);
 
         // Drain remaining events to ExitedEvent
-        await DrainToExit(Dbg, cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
 
         await Dbg.DisconnectAsync(cts.Token);
     }
@@ -94,7 +61,7 @@ public class DebuggerAdvancedTests(DebuggerFixture fixture)
         await Dbg.ContinueAsync(cts.Token);
 
         // Wait for the breakpoint inside the background thread
-        await WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
+        await DebuggerTestHelpers.WaitForSpecificEvent<BreakpointHitEvent>(Dbg, cts.Token);
 
         // Both main thread and background thread should be visible
         var allThreads = await Dbg.GetAllThreadStackTracesAsync(cts.Token);
@@ -102,7 +69,7 @@ public class DebuggerAdvancedTests(DebuggerFixture fixture)
             $"Expected >= 2 threads at BP-20, got {allThreads.Count}");
 
         await Dbg.ContinueAsync(cts.Token);
-        await DrainToExit(Dbg, cts.Token);
+        await DebuggerTestHelpers.DrainToExit(Dbg, cts.Token);
 
         await Dbg.DisconnectAsync(cts.Token);
     }
