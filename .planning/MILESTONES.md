@@ -27,8 +27,30 @@
 
 ---
 
-## v1.1 — Complete .NET Debug Coverage (started 2026-02-23)
+## v1.1 — Complete .NET Debug Coverage (completed 2026-02-25)
 
-**Goal:** Expandir o debug engine para cobrir todos os padrões .NET — structs, enums, nullable, closures, iterators, static fields, referências circulares, exceções não-capturadas, multi-threading, attach, e reverse PDB lookup — com testes xUnit e documentação completa.
+**Goal:** Expandir o debug engine para cobrir todos os padrões .NET — structs, enums, nullable, closures, iterators, static fields, referências circulares, exceções não-capturadas, multi-threading, attach, reverse PDB lookup, e debug de testes xUnit — com testes de integração automatizados e README completo.
 
-**Starting phase:** 5 (continues from v1.0)
+**Shipped:**
+- Phase 5 (Type System): Leitura de structs, enums, Nullable<T> e static fields via PE metadata (ICorDebugClass.GetStaticFieldValue)
+- Phase 6 (Closures, Iterators & Object Graph): Variáveis capturadas em lambdas com nomes limpos, estado de iterators, detecção de referências circulares, computed properties
+- Phase 7 (Exceptions, Threading & Attach): ExceptionEvent com tipo+mensagem real, first-chance notifications, inspeção multi-thread, debug_pause, debug_attach por PID
+- Phase 8 (Stack Trace & dotnet test): PdbReader.ReverseLookup (IL→source:line), debug_launch_test para projetos xUnit via `dotnet test`
+- Phase 9 (Tests & Documentation): 14 testes de integração xUnit automatizados, README reescrito com diagrama ASCII
+- Phase 10 (Tech Debt): Scripts portáteis (sem paths hardcoded), CMake removido, testes THRD-03 e DTEST-02 adicionados
+
+**Validated capabilities:**
+- Sistema de tipos completo: struct, enum, Nullable<T>, static fields, computed properties
+- Object graph: closures/iterators legíveis, detecção de referências circulares
+- Exceções: second-chance com tipo+mensagem, first-chance configurável
+- Multi-threading: enumerate threads, stack por thread, pause multithreaded
+- Process Attach: debug_attach a processos .NET em execução por PID
+- Stack frames legíveis: "Program.cs:57" via reverse PDB lookup
+- dotnet test: debug dentro de xUnit test processes com breakpoints em [Fact]
+- 14 testes de integração automatizados passando
+
+**Stats:** 6 fases (5-10), 17 planos, 41 commits feat, 98 arquivos modificados, ~4.776 LOC C#, 3 dias
+
+**Archive:** .planning/milestones/v1.1-ROADMAP.md, .planning/milestones/v1.1-REQUIREMENTS.md
+
+---

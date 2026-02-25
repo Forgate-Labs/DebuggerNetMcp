@@ -2,10 +2,10 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-23)
+See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Debug .NET works reliably on Linux kernel 6.12+ without fragile workarounds
-**Current focus:** Milestone v1.1 — Phase 10: Tech Debt Cleanup
+**Current focus:** Planning next milestone (v1.2+)
 
 ## Current Position
 
